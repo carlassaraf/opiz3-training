@@ -11,7 +11,9 @@ set -euo pipefail
 
 MACBOOK_PUBKEY="${1:-}"
 KAS_VERSION="${KAS_VERSION:-4.7}"   # pin to the version you validated
-TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-aarch64-aarch64-none-linux-gnu.tar.xz"
+# Arm publishes AArch64-hosted aarch64-none-linux-gnu builds from 14.2.Rel1 on (13.x has none).
+TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-aarch64-aarch64-none-linux-gnu.tar.xz"
+TOOLCHAIN_SHA256="299c56db1644c135670afabbf801b97a42e5ef6069d73157ab869458cbda2096"
 USER_NAME="$(id -un)"
 
 echo "==> Host packages (Yocto Scarthgap + Buildroot + kernel/U-Boot/TF-A + lab services)"
@@ -38,11 +40,12 @@ echo "==> kas ${KAS_VERSION}"
 pipx install --force "kas==${KAS_VERSION}"
 pipx ensurepath
 
-echo "==> AArch64 cross toolchain for M1-M4 (Arm GNU 13.2.Rel1, AArch64-hosted)"
+echo "==> AArch64 cross toolchain for M1-M4 (Arm GNU 14.2.Rel1, AArch64-hosted)"
 # Bootlin's toolchain from the book ships for x86-64 hosts only.
 if [ ! -x /opt/toolchain/bin/aarch64-none-linux-gnu-gcc ]; then
   sudo mkdir -p /opt/toolchain
   curl -fL "${TOOLCHAIN_URL}" -o /tmp/tc.tar.xz
+  echo "${TOOLCHAIN_SHA256}  /tmp/tc.tar.xz" | sha256sum -c -
   sudo tar -xf /tmp/tc.tar.xz -C /opt/toolchain --strip-components=1
   rm -f /tmp/tc.tar.xz
 fi
