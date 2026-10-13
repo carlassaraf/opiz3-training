@@ -60,7 +60,7 @@ This edition runs on one person's home setup. All building happens on a **Mac mi
 | Machine | Role | Resources used |
 |---|---|---|
 | **Mac mini M4** (16 GB RAM, 256 GB internal) | Always-on host. Runs the **`elt` Ubuntu 24.04 VM** (Lima, Apple Virtualization, native arm64). The Orange Pi's serial adapter, an SD card reader and the FEL cable plug into it. | VM: 8 of 10 cores, 10 GB RAM (+8 GB swap inside the VM). macOS keeps ~6 GB. |
-| **External SSD, 1 TB** (on the Mac mini) | Holds the VM disk (sparse, 600 GB ceiling) and Lima's state. The 256 GB internal disk is left alone. | Expect ~100–250 GB in real use (see §2.5.7). |
+| **External SSD, 1 TB** (on the Mac mini) | Shared drive: a 400 GB APFS partition `ELT-SSD` holds the VM disk (sparse, 350 GiB ceiling) and Lima's state; a 600 GB exFAT partition `KINGSTON` keeps personal files. The 256 GB internal disk is left alone. | Expect ~100–250 GB in real use (see §2.5.7). |
 | **MacBook Pro M3 Pro** (daily driver) | Editor and terminal only: SSH / VS Code Remote-SSH into the VM, serial console through the Mac mini. Nothing is built on it. | Negligible |
 | Orange Pi Zero 3 (4 GB) | Target, on the home LAN via Ethernet | — |
 
@@ -116,7 +116,7 @@ The on-board Wi-Fi/BT combo (Unisoc UWE5622 family) **has no mainline driver**. 
  ├─ USB: serial adapter ── Orange Pi UART0                  │
  ├─ USB: SD card reader                                     │
  ├─ USB: OTG cable ─────── Orange Pi (FEL, last resort)     │
- └─ External SSD 1 TB                                       │
+ └─ External SSD 1 TB (ELT-SSD APFS 400 GB)                 │
      └─ Lima VM "elt" (Ubuntu 24.04 arm64, bridged) ◄───────┘
          builds · TFTP · NFS root · package feed · Mender server
                          ▲
@@ -140,7 +140,11 @@ The on-board Wi-Fi/BT combo (Unisoc UWE5622 family) **has no mainline driver**. 
    - System Settings → General → Sharing → **Remote Login** on.
    - Never sleep, restart after power loss: `sudo pmset -a sleep 0 disksleep 0 autorestart 1` (display sleep is fine).
    - If FileVault is on, a reboot waits for the password at the physical console. For planned reboots use `sudo fdesetup authrestart`.
-2. **External SSD**: format as APFS (case-sensitivity doesn't matter: the VM's ext4 filesystem lives inside a disk-image file), name it `ELT-SSD`. Exclude it from indexing and backups: `sudo mdutil -i off /Volumes/ELT-SSD` and add it to Time Machine's exclusions.
+2. **External SSD**: Lima needs an APFS volume (exFAT has no Unix sockets, sparse files or clones), named `ELT-SSD`; case-sensitivity doesn't matter, since the VM's ext4 filesystem lives inside a disk-image file. This edition shares the 1 TB drive with personal files:
+   ```sh
+   sudo diskutil partitionDisk disk4 GPT APFS ELT-SSD 400g ExFAT KINGSTON R   # ERASES the whole drive
+   ```
+   **Back up the drive and verify the copy before running this.** macOS can't shrink an exFAT partition, so there is no non-destructive path. If the drive is already APFS, add a volume to its container instead (`sudo diskutil apfs addVolume diskN APFS ELT-SSD -reserve 300g`), which keeps existing files. Keep `disk:` in `host/lima-elt.yaml` below the volume size. Exclude `ELT-SSD` from indexing and backups: `sudo mdutil -i off /Volumes/ELT-SSD` and add it to Time Machine's exclusions. The drive must stay plugged into the Mac mini; stop the VM (`limactl stop elt`) before ever ejecting it.
 3. **Tools**: `brew install lima tio tmux socat`. Build `sunxi-tools` for FEL: `brew install libusb pkg-config dtc`, clone `linux-sunxi/sunxi-tools`, `make tools`, put `sunxi-fel` on the `PATH`.
 4. **Bridged networking for Lima**: install `socket_vmnet` from source as root into `/opt/socket_vmnet` (Lima's docs advise against the Homebrew build), then install Lima's sudoers file: `limactl sudoers > /tmp/lima && sudo install -o root /tmp/lima /etc/sudoers.d/lima`. In `$LIMA_HOME/_config/networks.yaml`, set the `bridged` network's `interface` to the Mac mini's LAN interface (`en0` for Ethernet).
 5. **Lima state on the SSD**: add `export LIMA_HOME=/Volumes/ELT-SSD/lima` to `~/.zshrc`.

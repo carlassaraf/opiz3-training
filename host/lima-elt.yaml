@@ -18,7 +18,7 @@ images:
 
 cpus: 8                    # leave 2 of the M4's 10 cores to macOS
 memory: "10GiB"            # leave ~6 GB to macOS; the VM adds 8 GB of swap (see provision)
-disk: "600GiB"             # sparse; ceiling, not an allocation
+disk: "350GiB"             # sparse; ceiling, not an allocation. Must stay below the 400 GB ELT-SSD volume
 
 # No host folders shared: the Git repo and all builds live on the VM's own ext4 disk
 # (case-sensitive, fast). Everything is reached over SSH from the MacBook.
