@@ -1,0 +1,26 @@
+# The book (copyrighted) — keep a local copy, never commit it
+*.pdf
+
+# Build trees and caches belong in /work on the elt VM, never in the repo
+build/
+tmp/
+sstate-cache/
+downloads/
+output/
+*.o
+*.ko
+*.a
+*.so
+
+# Large images: commit logs and checksums to evidence/, not binaries
+*.img
+*.wic
+*.wic.*
+*.ext4
+*.tar.xz
+*.tar.bz2
+
+# Editors / macOS
+.DS_Store
+.vscode/
+*.swp
