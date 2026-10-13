@@ -1,0 +1,58 @@
+# kas project file — Orange Pi Zero 3 training image (Yocto 5.0 Scarthgap)
+# Lives in the training repo (cloned to ~/el-training inside the "elt" VM).
+# Run inside the VM:  cd ~/el-training && kas build kas/opiz3.yml
+# KAS_WORK_DIR=/work (set by bootstrap-vm.sh) → layers checked out under /work, build in /work/build
+header:
+  version: 14
+
+machine: opiz3
+distro: opiz3-iot
+target: opiz3-iot-image
+
+repos:
+  # no url/path: this is the repo that contains this kas file (provides the team layers)
+  el-training:
+    layers:
+      layers/meta-opiz3-bsp:
+      layers/meta-opiz3-apps:
+
+  poky:
+    url: https://git.yoctoproject.org/poky
+    branch: scarthgap
+    # pin a commit once the build is validated:
+    # commit: <sha>
+    layers:
+      meta:
+      meta-poky:
+
+  meta-openembedded:
+    url: https://git.openembedded.org/meta-openembedded
+    branch: scarthgap
+    layers:
+      meta-oe:
+      meta-python:
+      meta-networking:
+
+  meta-arm:
+    url: https://git.yoctoproject.org/meta-arm
+    branch: scarthgap
+    layers:
+      meta-arm:
+      meta-arm-toolchain:
+
+local_conf_header:
+  elt-host: |
+    DL_DIR = "/work/cache/downloads"
+    SSTATE_DIR = "/work/cache/sstate"
+    # Mac mini M4 VM: 8 vCPUs, 10 GB RAM + 8 GB swap.
+    # Fewer BitBake tasks than cores keeps peak memory in check (C++ and linking are the peaks).
+    BB_NUMBER_THREADS = "6"
+    PARALLEL_MAKE = "-j 8"
+    # Stop cleanly instead of corrupting sstate when the SSD fills up
+    BB_DISKMON_DIRS = "STOPTASKS,${TMPDIR},2G,100K STOPTASKS,${DL_DIR},2G,100K STOPTASKS,${SSTATE_DIR},2G,100K HALT,${TMPDIR},200M,1K"
+    # Delete per-recipe work dirs after each recipe: biggest single disk saver
+    INHERIT += "rm_work buildhistory"
+    BUILDHISTORY_COMMIT = "1"
+    # Smaller downloads: shallow Git clones, no mirror tarballs
+    BB_GIT_SHALLOW = "1"
+    BB_GENERATE_MIRROR_TARBALLS = "0"

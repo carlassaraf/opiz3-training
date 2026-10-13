@@ -1,0 +1,57 @@
+# Lima VM definition — "elt" build host on the Mac mini M4 (16 GB / 10 cores)
+#
+# Create & start (on the Mac mini, with LIMA_HOME pointing at the external SSD):
+#   export LIMA_HOME=/Volumes/ELT-SSD/lima
+#   limactl create --name=elt host/lima-elt.yaml
+#   limactl start elt
+#
+# The VM disk is a sparse file under $LIMA_HOME: it only uses the space the builds
+# actually fill, and it lives on the external SSD, not the 256 GB internal disk.
+
+vmType: vz                 # Apple Virtualization.framework, native arm64, near-native speed
+arch: aarch64
+os: Linux
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: aarch64
+
+cpus: 8                    # leave 2 of the M4's 10 cores to macOS
+memory: "10GiB"            # leave ~6 GB to macOS; the VM adds 8 GB of swap (see provision)
+disk: "600GiB"             # sparse; ceiling, not an allocation
+
+# No host folders shared: the Git repo and all builds live on the VM's own ext4 disk
+# (case-sensitive, fast). Everything is reached over SSH from the MacBook.
+mounts: []
+
+# Bridged networking: the VM gets its own IP on the home LAN (DHCP from the router),
+# so the Orange Pi can reach it for TFTP, NFS root, package feeds and the Mender server,
+# and the MacBook can SSH to it directly.
+# Requires socket_vmnet installed as root + `limactl sudoers` (see plan §2.5.2, step 4).
+# If your Lima version refuses `lima: bridged` with vmType vz, switch to `vmType: qemu`
+# (HVF-accelerated, a bit slower) and keep the same network.
+networks:
+  - lima: bridged
+
+# No containerd/nerdctl inside the VM; this is a plain Ubuntu build host.
+containerd:
+  system: false
+  user: false
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      # 8 GB swap so big link steps don't trigger the OOM killer with 10 GB RAM
+      if [ ! -f /swapfile ]; then
+        fallocate -l 8G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        swapon /swapfile
+      fi
+      # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; BitBake needs them
+      # ("User namespaces are not usable by BitBake, possibly due to AppArmor").
+      echo 'kernel.apparmor_restrict_unprivileged_userns = 0' > /etc/sysctl.d/60-bitbake-userns.conf
+      sysctl --system
