@@ -19,13 +19,14 @@
 3. **QEMU first, hardware second.** When the book offers a QEMU path, do it first. It isolates "I don't understand the concept" from "my board/cable/SD card is broken".
 4. **Yocto is the spine.** From Module 5 onward every deliverable lands in the team's own layers (`meta-opiz3-bsp` and `meta-opiz3-apps`). By the capstone, the trainee owns a production-style BSP, distro and image.
 5. **Every lab has an exit check.** No lab is "done" until its validation commands produce the expected output, and the evidence (logs, screenshots, `git` commits) is pushed to the trainee's repo.
+6. **One build host, reached over the network.** All compiling (toolchain labs, U-Boot, kernel, BusyBox, Buildroot, Yocto) happens in the **`elt` VM** (Ubuntu 24.04 arm64, the book's host OS) on the Mac mini M4. The MacBook only connects to it over SSH. Board-facing USB tasks (serial console, SD card reader, FEL) are attached to the Mac mini and also used over SSH. See §2.5.
 
 ### 1.2 Duration and cadence
 
 | Mode | Duration | Notes |
 |---|---|---|
 | Recommended: 50% allocation (~20 h/week) | **18 weeks** | Leaves room for real project work |
-| Full-time bootcamp | ~9 weeks | Needs a fast shared build server |
+| Full-time | ~9 weeks | Fine on the Mac mini VM once sstate is warm |
 
 Weekly rhythm: Monday kick-off (30 min, instructor walks through the chapter's key ideas), self-paced reading + labs, Thursday clinic (1 h, debugging help), Friday demo + exit-check review (1 h, trainees show their validation output).
 
@@ -42,36 +43,40 @@ el-training-<name>/
 │   └── ...
 ├── evidence/              # serial logs, command outputs used for validation
 ├── layers/
-│   ├── meta-opiz3-bsp/    # machine, bootloader, kernel, wks (from Module 6)
-│   └── meta-opiz3-apps/   # distro, images, apps, drivers (from Module 6)
-└── kas/ or setup/         # reproducible Yocto setup (kas file or repo manifest)
+│   ├── meta-opiz3-bsp/    # machine, bootloader, kernel, wks (from Module 5)
+│   └── meta-opiz3-apps/   # distro, images, apps, drivers (from Module 5)
+├── kas/                   # reproducible Yocto setup (kas files)
+└── host/                  # lima-elt.yaml + bootstrap-vm.sh (build host setup, §2.5)
 ```
 
 ---
 
 ## 2. Lab setup
 
-### 2.1 Host machine (per trainee or shared build server)
+### 2.1 Host machines
 
-| Item | Minimum | Recommended |
+This edition runs on one person's home setup. All building happens on a **Mac mini M4** that acts as a headless build server; the daily-driver **MacBook** is only a thin client that connects over the network.
+
+| Machine | Role | Resources used |
 |---|---|---|
-| OS | Ubuntu 24.04 LTS **x86-64** (book errata: ARM hosts don't work verbatim) | Same |
-| CPU | 8 cores | 16+ cores |
-| RAM | 16 GB | 32 GB+ |
-| Disk | 300 GB free SSD | 1 TB NVMe |
+| **Mac mini M4** (16 GB RAM, 256 GB internal) | Always-on host. Runs the **`elt` Ubuntu 24.04 VM** (Lima, Apple Virtualization, native arm64). The Orange Pi's serial adapter, an SD card reader and the FEL cable plug into it. | VM: 8 of 10 cores, 10 GB RAM (+8 GB swap inside the VM). macOS keeps ~6 GB. |
+| **External SSD, 1 TB** (on the Mac mini) | Holds the VM disk (sparse, 600 GB ceiling) and Lima's state. The 256 GB internal disk is left alone. | Expect ~100–250 GB in real use (see §2.5.7). |
+| **MacBook Pro M3 Pro** (daily driver) | Editor and terminal only: SSH / VS Code Remote-SSH into the VM, serial console through the Mac mini. Nothing is built on it. | Negligible |
+| Orange Pi Zero 3 (4 GB) | Target, on the home LAN via Ethernet | — |
 
-**Shared infrastructure (strongly recommended):** one build server exporting a shared Yocto `DL_DIR` and `SSTATE_DIR` (NFS or HTTP sstate mirror). This cuts a clean `core-image-minimal` from hours to minutes for everyone after the first build. Also run a TFTP server and an NFS server on the lab network for Module 4.
+Everything sits on the same home LAN. The VM is **bridged** onto that LAN with its own IP, so the Orange Pi can reach it directly (TFTP, NFS root, package feeds, Mender server) and the MacBook can SSH straight into it.
 
-### 2.2 Hardware kit per trainee
+### 2.2 Hardware kit
 
 | Item | Purpose |
 |---|---|
 | Orange Pi Zero 3, 4 GB | Target |
 | 5 V / 3 A USB-C power supply | Stable power (undervoltage causes "random" crashes) |
-| 3.3 V USB-to-TTL serial adapter (FTDI/CP2102) | Debug UART (UART0, 115200 8N1) — **mandatory** |
-| 2× microSD 16–32 GB (A1, good brand) + USB reader | One "known good", one for experiments |
+| 3.3 V USB-to-TTL serial adapter (FTDI/CP2102) | Debug UART (UART0, 115200 8N1), plugged into the Mac mini — **mandatory** |
+| 2× microSD 16–32 GB (A1, good brand) + USB reader | One "known good", one for experiments; reader stays plugged into the Mac mini |
 | Ethernet cable + lab switch | Primary network (onboard Gigabit, Motorcomm YT8531 PHY) |
-| USB-A ↔ USB-C data cable | USB OTG / FEL recovery mode |
+| USB-A ↔ USB-C data cable | Orange Pi OTG → Mac mini, for FEL recovery |
+| Wi-Fi smart plug with a local HTTP API (Shelly / Tasmota) — optional | Power-cycle the board remotely from the MacBook |
 | USB Wi-Fi dongle with mainline driver (e.g. MT7601U or MT7612U based) | Wi-Fi labs (see §2.4) |
 | Breadboard, jumpers, LEDs, push buttons, resistors | GPIO labs |
 | BME280 breakout (I2C) | Sensor / IIO driver labs + capstone |
@@ -97,6 +102,178 @@ The on-board Wi-Fi/BT combo (Unisoc UWE5622 family) **has no mainline driver**. 
 
 - **Default path:** a USB Wi-Fi dongle with a mainline driver + `linux-firmware` package — this teaches exactly the Yocto skills the chapter targets (kernel config fragment, firmware packaging, `wpa_supplicant`/`iwd`, `MACHINE_FEATURES`).
 - **Stretch path:** package the out-of-tree vendor driver as an external kernel module recipe. Great Yocto exercise, but not production-grade — discuss why (maintenance cost of out-of-tree drivers is a key lesson for IoT product decisions).
+
+### 2.5 Build host: Mac mini M4 + `elt` VM, driven from the MacBook
+
+#### 2.5.1 Topology
+
+```
+ MacBook Pro (daily driver)                      Home LAN (Ethernet / Wi-Fi)
+ ├─ ssh elt / VS Code Remote-SSH ───────────────────────────┐
+ └─ ssh macmini (serial, SD writer, power) ──────────┐      │
+                                                     │      │
+ Mac mini M4 (macOS, headless) ◄─────────────────────┘      │
+ ├─ USB: serial adapter ── Orange Pi UART0                  │
+ ├─ USB: SD card reader                                     │
+ ├─ USB: OTG cable ─────── Orange Pi (FEL, last resort)     │
+ └─ External SSD 1 TB                                       │
+     └─ Lima VM "elt" (Ubuntu 24.04 arm64, bridged) ◄───────┘
+         builds · TFTP · NFS root · package feed · Mender server
+                         ▲
+ Orange Pi Zero 3 ── Ethernet (LAN) ──┘
+```
+
+| Task | Runs on | Reached from the MacBook by |
+|---|---|---|
+| All builds: toolchain labs, TF-A, U-Boot, kernel, BusyBox, Buildroot, Yocto/kas/devtool/SDK | `elt` VM | `ssh elt`, VS Code Remote-SSH |
+| `runqemu` (QEMU labs) | `elt` VM (`nographic slirp`) | `ssh elt` |
+| TFTP, NFS root, package feed (HTTP), Mender server, MQTT broker | `elt` VM (LAN IP) | the Orange Pi reaches them directly |
+| Serial console (logged) | Mac mini macOS (`tio` in `tmux`) | `ssh -t macmini tmux attach -t serial` |
+| Writing SD cards (first boot, recovery) | Mac mini macOS (SD reader) | `ssh macmini` + `dd` |
+| Re-flashing SD cards (normal case) | The Orange Pi itself, net-booted from the VM | serial console (§2.5.5) |
+| FEL recovery (`sunxi-fel`) | Mac mini macOS | `ssh macmini` |
+| `testimage`, `devtool deploy-target`, `scp` to the board | `elt` VM → board over the LAN | `ssh elt` |
+
+#### 2.5.2 Mac mini (macOS) one-time setup
+
+1. **Server behaviour**
+   - System Settings → General → Sharing → **Remote Login** on.
+   - Never sleep, restart after power loss: `sudo pmset -a sleep 0 disksleep 0 autorestart 1` (display sleep is fine).
+   - If FileVault is on, a reboot waits for the password at the physical console. For planned reboots use `sudo fdesetup authrestart`.
+2. **External SSD**: format as APFS (case-sensitivity doesn't matter: the VM's ext4 filesystem lives inside a disk-image file), name it `ELT-SSD`. Exclude it from indexing and backups: `sudo mdutil -i off /Volumes/ELT-SSD` and add it to Time Machine's exclusions.
+3. **Tools**: `brew install lima tio tmux socat`. Build `sunxi-tools` for FEL: `brew install libusb pkg-config dtc`, clone `linux-sunxi/sunxi-tools`, `make tools`, put `sunxi-fel` on the `PATH`.
+4. **Bridged networking for Lima**: install `socket_vmnet` from source as root into `/opt/socket_vmnet` (Lima's docs advise against the Homebrew build), then install Lima's sudoers file: `limactl sudoers > /tmp/lima && sudo install -o root /tmp/lima /etc/sudoers.d/lima`. In `$LIMA_HOME/_config/networks.yaml`, set the `bridged` network's `interface` to the Mac mini's LAN interface (`en0` for Ethernet).
+5. **Lima state on the SSD**: add `export LIMA_HOME=/Volumes/ELT-SSD/lima` to `~/.zshrc`.
+6. **Create the VM** from `host/lima-elt.yaml` (shipped with this plan):
+   ```sh
+   limactl create --name=elt host/lima-elt.yaml
+   limactl start elt
+   limactl shell elt          # first login, from the Mac mini itself
+   ```
+   If `limactl` rejects `lima: bridged` with `vmType: vz` on your Lima version, change the YAML to `vmType: qemu` (HVF-accelerated, somewhat slower).
+7. **Serial console as a persistent, logged session** (USB-serial adapter on the Mac mini):
+   ```sh
+   mkdir -p ~/serial
+   tmux new -d -s serial "tio -b 115200 --log --log-file ~/serial/opiz3-\$(date +%F).log /dev/cu.usbserial-*"
+   ```
+   The log files are your evidence for exit checks; copy them into the repo's `evidence/`.
+8. **Optional, recommended: remote power cycling.** Power the Orange Pi through a Wi-Fi smart plug with a local HTTP API (Shelly, or anything running Tasmota) so a hung board can be reset from the MacBook with one `curl`. Without it, a hung board means walking to the desk.
+
+#### 2.5.3 `elt` VM setup
+
+From the Mac mini, inside `limactl shell elt`:
+
+```sh
+git clone <your training repo> ~/el-training
+~/el-training/host/bootstrap-vm.sh "$(cat <<'EOF'
+ssh-ed25519 AAAA...your MacBook public key...
+EOF
+)"
+```
+
+`bootstrap-vm.sh` (shipped with this plan) installs:
+
+- the Yocto Scarthgap host packages, plus Buildroot, kernel, U-Boot and TF-A build dependencies, QEMU, `kas`, and an mDNS responder (the VM answers as `lima-elt.local`);
+- the **Arm GNU Toolchain 13.2.Rel1**, AArch64-hosted, in `/opt/toolchain`, with `CROSS_COMPILE=aarch64-none-linux-gnu-` and `ARCH=arm64` exported. The book's Bootlin toolchain only ships for x86-64 hosts; GCC version and concepts are the same;
+- a **TFTP server** on `/srv/tftp` and an **NFS server** exporting `/srv/nfs/rootfs` to the LAN (M3/M4);
+- `/work` for build trees and caches (`/work/cache/downloads`, `/work/cache/sstate`, `/work/build`), all on the VM's ext4 disk;
+- your MacBook's SSH key.
+
+The VM YAML also adds 8 GB of swap and sets `kernel.apparmor_restrict_unprivileged_userns = 0`. Ubuntu 24.04 blocks unprivileged user namespaces by default, and BitBake fails with "User namespaces are not usable by BitBake" without this setting. The book's Ubuntu 24.04 host needs the same fix.
+
+Give the VM a **DHCP reservation** on your router (it keeps the same MAC address), so its IP stays fixed for U-Boot `serverip` and NFS `bootargs`.
+
+#### 2.5.4 MacBook setup
+
+`~/.ssh/config`:
+
+```
+Host macmini
+    HostName macmini.local          # or its reserved IP
+    User <your macOS user on the mini>
+
+Host elt
+    HostName lima-elt.local         # or the VM's reserved IP
+    User <same username as on the mini; Lima reuses it>
+    ForwardAgent yes                # use your GitHub key from inside the VM
+    ServerAliveInterval 30
+```
+
+Daily use:
+
+```sh
+ssh elt                              # build shell (use tmux inside for long builds)
+code --remote ssh-remote+elt ~/el-training   # VS Code on the VM's files
+ssh -t macmini tmux attach -t serial         # Orange Pi console; detach: Ctrl-b d
+ssh macmini 'limactl start elt'              # after a Mac mini reboot
+```
+
+Run long builds inside `tmux` on the VM (`tmux new -A -s build`), so closing the MacBook lid doesn't kill a three-hour first build.
+
+#### 2.5.5 Flashing without touching the board
+
+The SD card only has to be moved by hand for the very first boots (M0, M2). After that:
+
+1. **M2:** write your own U-Boot to the **16 MB SPI NOR** as well (`sf probe; sf update ...`). If the SD card's SPL is broken or missing, the Boot ROM falls back to SPI NOR, so you always reach a U-Boot prompt over serial.
+2. **M3/M4:** add a `netboot` U-Boot environment that TFTPs `Image` + DTB from the VM and mounts the root filesystem over NFS from `/srv/nfs/rootfs`. Most kernel and rootfs iterations then don't touch the SD card at all.
+3. **From M5 on, re-flash the SD card from the board itself.** `run netboot` (the root filesystem is on NFS, so the SD card is idle), then on the board:
+   ```sh
+   bmaptool copy http://lima-elt.local:8000/opiz3-iot-image-opiz3.rootfs.wic.bz2 /dev/mmcblk0
+   reboot
+   ```
+   On the VM, serve the deploy directory with `python3 -m http.server 8000 -d /work/build/tmp/deploy/images/opiz3`. NFS-root image: any small Buildroot or Yocto image with `bmaptool`, extracted into `/srv/nfs/rootfs`.
+4. **M6 onward:** `devtool deploy-target` and the opkg package feed push changes without re-flashing. **M9 onward:** Mender OTA becomes the normal update path.
+5. **Last resort:** SD and SPI NOR both broken → the Boot ROM drops into FEL → `ssh macmini sunxi-fel -v uboot u-boot-sunxi-with-spl.bin`.
+
+Writing a card in the Mac mini's reader, when needed:
+
+```sh
+scp elt:/work/build/tmp/deploy/images/opiz3/opiz3-iot-image-opiz3.rootfs.wic.bz2 macmini:/tmp/
+ssh macmini
+diskutil list external                       # find the card, e.g. /dev/disk5
+diskutil unmountDisk /dev/disk5
+bunzip2 -c /tmp/opiz3-iot-image-opiz3.rootfs.wic.bz2 | sudo dd of=/dev/rdisk5 bs=4m
+diskutil eject /dev/disk5
+```
+
+#### 2.5.6 Host check (part of M0)
+
+On the VM (`ssh elt`):
+
+```sh
+uname -m                                       # aarch64
+grep PRETTY_NAME /etc/os-release               # Ubuntu 24.04.x LTS
+${CROSS_COMPILE}gcc --version | head -1        # Arm GNU Toolchain 13.2.rel1
+kas --version                                  # kas 4.x
+sysctl kernel.apparmor_restrict_unprivileged_userns   # = 0
+free -h; swapon --show                         # ~10 GB RAM, 8 GB swap
+df -h /work                                    # hundreds of GB free (sparse disk)
+systemctl is-active tftpd-hpa nfs-kernel-server ssh   # active ×3
+ip -4 addr show | grep 'inet '                 # an address on your home LAN
+```
+
+From the MacBook:
+
+```sh
+ssh elt true && ssh macmini 'ls /dev/cu.usbserial-*' && ping -c1 lima-elt.local
+```
+
+Save the output as `evidence/m0-host-check.log`.
+
+#### 2.5.7 Keeping resources in check
+
+| Item | Typical size | How to keep it small |
+|---|---|---|
+| Downloads (`/work/cache/downloads`) | 10–25 GB | Shallow Git clones are enabled in the kas file; shared by all builds |
+| sstate (`/work/cache/sstate`) | 10–40 GB | Shared by all builds; prune occasionally with `sstate-cache-management.py` |
+| One Yocto build (`/work/build/tmp`) | 20–50 GB with `rm_work` | Delete `tmp/` between modules; sstate rebuilds it in minutes |
+| Buildroot output | 5–15 GB | `make clean` after M5/M11 |
+| Kernel / U-Boot / TF-A trees (M2–M4) | ~5 GB | — |
+
+- **Memory:** the kas file sets `BB_NUMBER_THREADS = "6"` and `PARALLEL_MAKE = "-j 8"` for 10 GB + 8 GB swap. If the OOM killer appears (`dmesg | grep -i oom` in the VM), lower `PARALLEL_MAKE` first. Big C++ recipes and links are the peaks.
+- **Disk:** the VM disk is sparse, so it only grows as you fill it. Deleting files inside the VM doesn't necessarily shrink the image file; `sudo fstrim -av` in the VM can return space to the SSD if your Lima version passes discards through. Check with `du -h $LIMA_HOME/elt/diffdisk` on the Mac mini.
+- **Expected speed:** a first `core-image-minimal` in roughly 1–2 hours on this VM; later rebuilds take minutes thanks to sstate. Keep the Mac mini plugged in and ventilated.
+- **Snapshot before risky changes:** `limactl stop elt && cp -c $LIMA_HOME/elt/diffdisk /Volumes/ELT-SSD/backup-elt-diffdisk` (APFS clone, near-instant, no extra space until the files diverge).
 
 ---
 
@@ -185,11 +362,11 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 **Objectives**
 - Understand when (and when not) to choose Linux; the four elements: toolchain, bootloader, kernel, root filesystem.
 - Understand GPL v2/v3, LGPL, permissive licenses and their product implications.
-- Provision the Ubuntu 24.04 x86-64 host exactly as the book describes.
+- Provision the Ubuntu 24.04 host as the book describes (here: the arm64 `elt` VM on the Mac mini).
 
 **Labs**
-1. Provision the host per Chapter 1 (packages, Git config, disk space).
-2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Open the console with `picocom -b 115200 /dev/ttyUSB0` (or `tio`).
+1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Compare the book's Chapter 1 package list with `host/bootstrap-vm.sh`; every package the book installs must be accounted for. Pass the host check (§2.5.6).
+2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
 3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
 4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
 
@@ -213,7 +390,7 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 - Static vs dynamic linking, shared library versioning, `pkg-config`, cross-compiling Make/Autotools/CMake projects.
 
 **Labs**
-1. Install the **Bootlin aarch64 toolchain 2024.02-1** exactly as the book does (it matches our Cortex-A53).
+1. Use the toolchain installed by `bootstrap-vm.sh` in `/opt/toolchain`: **Arm GNU Toolchain 13.2.Rel1**, AArch64-hosted (`aarch64-none-linux-gnu-`). The book uses the Bootlin aarch64 toolchain 2024.02-1, which only ships for x86-64 hosts. Read the book's installation steps, reproduce them by hand with the Arm tarball in a scratch directory, and note in your M1 notes how the tuple and sysroot layout differ from Bootlin's (`aarch64-buildroot-linux-gnu-`).
 2. Do every book exercise: `-v` / `-print-sysroot`, build the `Chapter02/library` example as static and shared library.
 3. OPiZ3 port: cross-compile a `hello` and the library example, `scp` them to the vendor image, run them.
 4. Cross-compile a real Autotools project and a CMake project (e.g. `libgpiod` and a small CMake app) using a CMake toolchain file you write yourself.
@@ -248,7 +425,7 @@ $ ldd ./hello-dyn    # (or readelf -d) shows expected NEEDED libs
 3. OPiZ3 port — build your own boot chain:
    - Build **TF-A** BL31: `make CROSS_COMPILE=aarch64-linux- PLAT=sun50i_h616 DEBUG=0 bl31` (use a TF-A release with H618 support; verify on the linux-sunxi wiki).
    - Build **U-Boot v2024.04** (book version): `make orangepi_zero3_defconfig && make BL31=<path>/bl31.bin SCP=/dev/null CROSS_COMPILE=aarch64-linux-`.
-   - Write `u-boot-sunxi-with-spl.bin` to the SD card at 8 KiB: `dd if=u-boot-sunxi-with-spl.bin of=/dev/sdX bs=1k seek=8 conv=fsync`.
+   - Write `u-boot-sunxi-with-spl.bin` to the SD card at 8 KiB: copy it to the Mac mini and `sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/rdiskN bs=1k seek=8` (§2.5.5). Then also write it to the SPI NOR from the U-Boot prompt, so you always have a fallback U-Boot.
 4. FEL boot: put the board in FEL (no SD card), then `sunxi-fel -v uboot u-boot-sunxi-with-spl.bin`. This is your recovery path for the rest of the course.
 5. U-Boot hands-on: `printenv`, `setenv`/`saveenv`, `mmc info`, `md`, `fdt` commands, `sf probe` on the SPI NOR, write a `boot.cmd` → `boot.scr` with `mkimage`.
 6. Porting exercise (book's "nova" equivalent): create a custom board defconfig `opiz3_training_defconfig` that changes the prompt to `opiz3 => ` and sets a custom default environment.
@@ -275,7 +452,7 @@ $ ldd ./hello-dyn    # (or readelf -d) shows expected NEEDED libs
 1. Book path: build Linux 6.6 for QEMU AArch64 and boot it.
 2. OPiZ3 port: clone mainline `v6.6.y` (stable), `make ARCH=arm64 CROSS_COMPILE=aarch64-linux- defconfig`, build `Image`, `modules`, `dtbs`. Confirm `arch/arm64/boot/dts/allwinner/sun50i-h618-orangepi-zero3.dtb` exists.
 3. Boot from U-Boot: load `Image` + DTB from the SD card FAT partition (`load mmc 0:1 ...`) and `booti`. Expect the "VFS: Unable to mount root fs" panic — that's success for this lab.
-4. Boot over the network: TFTP `Image` + DTB from the lab server.
+4. Boot over the network: TFTP `Image` + DTB from the `elt` VM (`/srv/tftp`), and save a `netboot` environment you'll keep using (§2.5.5).
 5. Kernel config: use `menuconfig` to enable a feature, then produce a minimal **config fragment** (`.cfg`) — you'll reuse this format in Yocto.
 6. DT exercise: create `sun50i-h618-orangepi-zero3-training.dts` that includes the upstream DTS, changes `model`, enables `i2c3` on the 26-pin header, and adds a `gpio-leds` node for an LED on a header GPIO. Boot it and check.
 
@@ -303,7 +480,7 @@ $ ls /sys/class/leds/         # your LED appears
 **Labs**
 1. Build the staging rootfs exactly as the book does (BusyBox, libs copied from the toolchain sysroot with the repo's `list-libs` helper).
 2. QEMU boot with initramfs (book path).
-3. OPiZ3: boot the same rootfs as initramfs, then from the SD card ext4 partition, then via **NFS root** over the lab network.
+3. OPiZ3: boot the same rootfs as initramfs, then from the SD card ext4 partition, then via **NFS root** from the `elt` VM (`/srv/nfs/rootfs`).
 4. Add an `inittab`, user accounts, `mdev`, and static network config. Mount `proc`, `sys`, `devtmpfs`.
 5. Install your kernel modules into the rootfs and load one with `modprobe`.
 
@@ -343,7 +520,7 @@ $ ls /sys/class/leds/         # your LED appears
 **Exit checks**
 ```sh
 $ bitbake core-image-minimal        # MACHINE = "opiz3", completes with no errors
-$ bmaptool copy ...wic.bz2 /dev/sdX
+$ bmaptool copy http://lima-elt.local:8000/...wic.bz2 /dev/mmcblk0   # on the net-booted board (§2.5.5)
 # on target:
 $ cat /etc/os-release               # Poky / scarthgap
 $ uname -r                          # 6.6.x-yocto-standard
@@ -369,7 +546,7 @@ $ cat /proc/device-tree/model       # your custom model
 2. Create an image recipe `opiz3-iot-image` (start from `core-image-base`) with SSH, `libgpiod-tools`, `i2c-tools`, `iw`.
 3. **Wi-Fi:** enable the USB dongle driver with a kernel config fragment, add the firmware package from `linux-firmware`, configure `wpa_supplicant` (or `iwd`) via a recipe that installs a config template + systemd unit.
 4. `devtool` workflow: `devtool add` a small C or Rust app from a Git repo; `devtool modify` `linux-yocto` to add a DT change; `devtool deploy-target` to the board; `devtool finish` into your layers.
-5. Package feed: serve `tmp/deploy/ipk` over HTTP from the build server, configure `opkg` on target, install a package without reflashing.
+5. Package feed: serve `tmp/deploy/ipk` over HTTP from the `elt` VM, configure `opkg` on target, install a package without reflashing.
 6. Extensible SDK: `bitbake opiz3-iot-image -c populate_sdk_ext`, install it, build an app outside BitBake.
 
 **Exit checks**
@@ -391,7 +568,7 @@ $ cat /proc/device-tree/model       # your custom model
 2. Use `bitbake-getvar` / `bitbake -e` to trace where `IMAGE_INSTALL` gets each value.
 3. Enable `buildhistory`, change one package, and diff image contents between builds.
 4. `bitbake -g` + `oe-depends-dot` (or `task-depends.dot`) — explain why changing a kernel config rebuilds what it rebuilds.
-5. Point builds to the shared sstate mirror; measure clean-build time before and after.
+5. Measure the sstate effect: time a build from an empty `tmp/` with the sstate cache present, then with an empty `SSTATE_DIR` pointed at a scratch directory (start that one before going to bed).
 
 **Exit checks**
 - All five broken recipes build; root-cause notes reviewed.
@@ -432,7 +609,7 @@ $ mount | grep ubifs     # UBIFS mounted
 **Labs**
 1. Book path: Mender on QEMU with Yocto (`meta-mender`, Scarthgap), local update with `mender-update install`.
 2. OPiZ3 port: integrate `meta-mender-core` into your image: U-Boot integration (boot counting, `bootlimit`, environment redundancy), A/B rootfs + data partition in the image. Expect U-Boot integration work — this is the real-world part.
-3. Perform an OTA update from a Mender server (hosted trial or self-hosted open source server on the lab network) to a new image that changes `/etc/issue`.
+3. Perform an OTA update from a Mender server (hosted trial, or the open-source server self-hosted on the `elt` VM; it needs Docker there) to a new image that changes `/etc/issue`.
 4. **Rollback test:** deploy an image whose application service fails its health check (or kernel that panics); verify automatic rollback.
 5. balena: read and discuss (OPiZ3 is not a balenaOS device type). If a Raspberry Pi 4 is available, run the book's exercise on it.
 6. Short comparison note: Mender vs RAUC vs SWUpdate for the company's IoT products.
@@ -494,7 +671,7 @@ $ mount | grep ubifs     # UBIFS mounted
 
 ### M12 — Python & containers (Week 14) · Chapters 15 & 16
 
-**Reading:** Chapters 15 and 16 (errata p.452: install `docker-ce` on the host, not `docker.io`).
+**Reading:** Chapters 15 and 16 (errata p.452: install `docker-ce` on the host, not `docker.io`; here, install it in the `elt` VM if you didn't already for the Mender server in M9).
 
 **Objectives**
 - Python packaging: pip, venv, `pyproject.toml`, conda vs pip, packaging Python for embedded targets with Yocto. Containers: Docker on the edge, building multi-arch images, deploying and updating containers.
@@ -655,7 +832,11 @@ Target to graduate: ≥2 in every module, ≥3 in M5–M9 (Yocto + storage + OTA
 
 ## 8. Instructor notes & known pitfalls
 
-- **Host must be x86-64** (book errata, p.15). Apple Silicon users need an x86-64 VM.
+- **Build only in the `elt` VM** (§2.5). The book's errata (p.15) asks for an x86-64 Ubuntu host for verbatim steps; the VM is Ubuntu 24.04 on arm64, so the only verbatim difference is the M1 toolchain (Arm GNU instead of Bootlin).
+- **Never build on macOS's own filesystem** (e.g. a folder shared into the VM). Case-insensitive APFS breaks the kernel and Yocto in confusing ways (`xt_mark.h` vs `xt_MARK.h`). Builds stay on the VM's ext4 disk.
+- **OOM in the VM** is the most likely "random" Yocto failure with 10 GB of RAM. Lower `PARALLEL_MAKE`, then `BB_NUMBER_THREADS`, in `kas/opiz3.yml`.
+- **"User namespaces are not usable by BitBake"** means the AppArmor sysctl from `lima-elt.yaml` didn't apply: `sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0`.
+- **Board can't reach the VM** (TFTP/NFS timeouts): the VM isn't bridged, or its IP changed. Check `ip -4 addr` in the VM and the router's DHCP reservation.
 - **Apply all repo errata** before the relevant module (p.68, 159, 175, 185, 344, 359–360, 452). Most affect BeaglePlay steps, which trainees read but don't run; the `dummy-char` and Docker ones directly affect our labs.
 - **Power supply problems masquerade as software bugs.** First question on any random crash: which PSU and cable?
 - **Never power the board from the serial adapter's VCC.**
@@ -664,8 +845,8 @@ Target to graduate: ≥2 in every module, ≥3 in M5–M9 (Yocto + storage + OTA
 - **Ethernet:** interface may be named `end0` (predictable names) rather than `eth0`. Write network configs accordingly.
 - **SD card detect is broken by design** — reboot after swapping cards.
 - **Wi-Fi:** on-board chip is not mainline — use the USB dongle path (see §2.4).
-- **Yocto build times:** set up the shared `DL_DIR`/sstate mirror before Week 7 or the module schedule will slip.
-- **Keep FEL recovery handy** (`sunxi-fel`): any trainee who bricks the SD boot chain is back in minutes.
+- **Yocto build times:** start the first full Yocto build (M5) overnight in `tmux` on the VM; everything after it reuses sstate.
+- **Keep FEL recovery handy** (`sunxi-fel` on the Mac mini): a bricked SD *and* SPI NOR boot chain is back in minutes, without leaving the MacBook.
 - **Zephyr reflexes to unlearn:** polling registers from user space, assuming a single address space, assuming `printf` timing is deterministic, expecting the whole system to be one binary.
 
 ---
