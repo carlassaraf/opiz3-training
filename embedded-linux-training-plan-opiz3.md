@@ -178,7 +178,7 @@ EOF
 `bootstrap-vm.sh` (shipped with this plan) installs:
 
 - the Yocto Scarthgap host packages, plus Buildroot, kernel, U-Boot and TF-A build dependencies, QEMU, `kas`, and an mDNS responder (the VM answers as `lima-elt.local`);
-- the **Arm GNU Toolchain 13.2.Rel1**, AArch64-hosted, in `/opt/toolchain`, with `CROSS_COMPILE=aarch64-none-linux-gnu-` and `ARCH=arm64` exported. The book's Bootlin toolchain only ships for x86-64 hosts; GCC version and concepts are the same;
+- the **Arm GNU Toolchain 14.2.Rel1**, AArch64-hosted, in `/opt/toolchain`, with `CROSS_COMPILE=aarch64-none-linux-gnu-` and `ARCH=arm64` exported. The book's Bootlin toolchain only ships for x86-64 hosts, and Arm publishes no AArch64-hosted Linux-target build before 14.2. That makes it GCC 14 instead of the book's GCC 13; the concepts are the same;
 - a **TFTP server** on `/srv/tftp` and an **NFS server** exporting `/srv/nfs/rootfs` to the LAN (M3/M4);
 - `/work` for build trees and caches (`/work/cache/downloads`, `/work/cache/sstate`, `/work/build`), all on the VM's ext4 disk;
 - your MacBook's SSH key.
@@ -247,7 +247,7 @@ On the VM (`ssh elt`):
 ```sh
 uname -m                                       # aarch64
 grep PRETTY_NAME /etc/os-release               # Ubuntu 24.04.x LTS
-${CROSS_COMPILE}gcc --version | head -1        # Arm GNU Toolchain 13.2.rel1
+${CROSS_COMPILE}gcc --version | head -1        # Arm GNU Toolchain 14.2.rel1
 kas --version                                  # kas 4.x
 sysctl kernel.apparmor_restrict_unprivileged_userns   # = 0
 free -h; swapon --show                         # ~10 GB RAM, 8 GB swap
@@ -394,7 +394,7 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 - Static vs dynamic linking, shared library versioning, `pkg-config`, cross-compiling Make/Autotools/CMake projects.
 
 **Labs**
-1. Use the toolchain installed by `bootstrap-vm.sh` in `/opt/toolchain`: **Arm GNU Toolchain 13.2.Rel1**, AArch64-hosted (`aarch64-none-linux-gnu-`). The book uses the Bootlin aarch64 toolchain 2024.02-1, which only ships for x86-64 hosts. Read the book's installation steps, reproduce them by hand with the Arm tarball in a scratch directory, and note in your M1 notes how the tuple and sysroot layout differ from Bootlin's (`aarch64-buildroot-linux-gnu-`).
+1. Use the toolchain installed by `bootstrap-vm.sh` in `/opt/toolchain`: **Arm GNU Toolchain 14.2.Rel1**, AArch64-hosted (`aarch64-none-linux-gnu-`). The book uses the Bootlin aarch64 toolchain 2024.02-1, which only ships for x86-64 hosts. Read the book's installation steps, reproduce them by hand with the Arm tarball in a scratch directory, and note in your M1 notes how the tuple and sysroot layout differ from Bootlin's (`aarch64-buildroot-linux-gnu-`).
 2. Do every book exercise: `-v` / `-print-sysroot`, build the `Chapter02/library` example as static and shared library.
 3. OPiZ3 port: cross-compile a `hello` and the library example, `scp` them to the vendor image, run them.
 4. Cross-compile a real Autotools project and a CMake project (e.g. `libgpiod` and a small CMake app) using a CMake toolchain file you write yourself.
