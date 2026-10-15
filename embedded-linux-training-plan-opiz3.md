@@ -397,17 +397,17 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 **Labs**
 - [x] 1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Chapter 1 has no host package list: the book installs packages chapter by chapter, starting with the full list in Chapter 2's *Technical requirements*. Search the book for every `apt install` / `apt-get install` run on the host and compare with `host/bootstrap-vm.sh`; every package must be either installed by the script or listed in `notes/m0-host-packages.md` with the reason it's not needed (e.g. crosstool-NG-only dependencies, or a renamed package). Pass the host check (§2.5.6).
 - [x] 2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
-- [ ] 3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
-- [ ] 4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
+- [x] 3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
+- [x] 4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
 
 **Exit checks**
-- [ ] Serial log in `evidence/m0-vendor-boot.log` showing the full boot from SPL to login prompt.
-- [ ] `notes/m0-board-tour.md` with SoC, RAM, storage devices, network interfaces, kernel version.
+- [x] Serial log in `evidence/m0-vendor-boot.log` showing the full boot from SPL to login prompt.
+- [x] `notes/m0-board-tour.md` with SoC, RAM, storage devices, network interfaces, kernel version.
 - [ ] License note reviewed by the instructor.
 
 **Review questions**
-- [ ] What are the four elements of embedded Linux, and which one does the Boot ROM load?
-- [ ] Why does GPLv3 matter for locked-down IoT devices?
+- [x] What are the four elements of embedded Linux, and which one does the Boot ROM load?
+- [x] Why does GPLv3 matter for locked-down IoT devices?
 
 ---
 
