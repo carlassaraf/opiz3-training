@@ -147,7 +147,14 @@ The on-board Wi-Fi/BT combo (Unisoc UWE5622 family) **has no mainline driver**. 
    **Back up the drive and verify the copy before running this.** macOS can't shrink an exFAT partition, so there is no non-destructive path. If the drive is already APFS, add a volume to its container instead (`sudo diskutil apfs addVolume diskN APFS ELT-SSD -reserve 300g`), which keeps existing files. Keep `disk:` in `host/lima-elt.yaml` below the volume size. Exclude `ELT-SSD` from indexing and backups: `sudo mdutil -i off /Volumes/ELT-SSD` and add it to Time Machine's exclusions. The drive must stay plugged into the Mac mini; stop the VM (`limactl stop elt`) before ever ejecting it.
 3. **Tools**: `brew install lima tio tmux socat`. Build `sunxi-tools` for FEL: `brew install libusb pkg-config dtc`, clone `linux-sunxi/sunxi-tools`, `make tools`, put `sunxi-fel` on the `PATH`.
 4. **Bridged networking for Lima**: install `socket_vmnet` from source as root into `/opt/socket_vmnet` (Lima's docs advise against the Homebrew build), then install Lima's sudoers file: `limactl sudoers > /tmp/lima && sudo install -o root /tmp/lima /etc/sudoers.d/lima`. In `$LIMA_HOME/_config/networks.yaml`, set the `bridged` network's `interface` to the Mac mini's LAN interface (`en0` for Ethernet).
-5. **Lima state on the SSD**: add `export LIMA_HOME=/Volumes/ELT-SSD/lima` to `~/.zshrc`.
+5. **Shell environment, including for remote commands**: `ssh macmini <cmd>` runs a non-login, non-interactive zsh that reads only `~/.zshenv`, not `~/.zprofile` or `~/.zshrc`. Homebrew's PATH and the Lima state location therefore go in `~/.zshenv`. Without this, `ssh -t macmini tmux attach …` fails with `command not found: tmux`, and `ssh macmini 'limactl …'` uses the wrong `LIMA_HOME`:
+   ```sh
+   cat >> ~/.zshenv <<'EOF'
+   eval "$(/opt/homebrew/bin/brew shellenv)"
+   export LIMA_HOME=/Volumes/ELT-SSD/lima
+   EOF
+   ```
+   Check from the MacBook: `ssh macmini 'command -v tmux tio limactl; echo $LIMA_HOME'`.
 6. **Create the VM** from `host/lima-elt.yaml` (shipped with this plan):
    ```sh
    limactl create --name=elt host/lima-elt.yaml
@@ -193,7 +200,7 @@ Give the VM a **DHCP reservation** on your router (it keeps the same MAC address
 
 ```
 Host macmini
-    HostName macmini.local          # or its reserved IP
+    HostName mini.local             # <LocalHostName>.local (`scutil --get LocalHostName` on the mini), or its reserved IP
     User <your macOS user on the mini>
 
 Host elt
@@ -380,7 +387,7 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 
 ### M0 — Onboarding & board tour (Week 1) · Chapter 1
 
-- [ ] **Reading:** Chapter 1 + the repo README (errata).
+- [x] **Reading:** Chapter 1 + the repo README (errata).
 
 **Objectives**
 - Understand when (and when not) to choose Linux; the four elements: toolchain, bootloader, kernel, root filesystem.
@@ -388,8 +395,8 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 - Provision the Ubuntu 24.04 host as the book describes (here: the arm64 `elt` VM on the Mac mini).
 
 **Labs**
-- [ ] 1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Chapter 1 has no host package list: the book installs packages chapter by chapter, starting with the full list in Chapter 2's *Technical requirements*. Search the book for every `apt install` / `apt-get install` run on the host and compare with `host/bootstrap-vm.sh`; every package must be either installed by the script or listed in `notes/m0-host-packages.md` with the reason it's not needed (e.g. crosstool-NG-only dependencies, or a renamed package). Pass the host check (§2.5.6).
-- [ ] 2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
+- [x] 1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Chapter 1 has no host package list: the book installs packages chapter by chapter, starting with the full list in Chapter 2's *Technical requirements*. Search the book for every `apt install` / `apt-get install` run on the host and compare with `host/bootstrap-vm.sh`; every package must be either installed by the script or listed in `notes/m0-host-packages.md` with the reason it's not needed (e.g. crosstool-NG-only dependencies, or a renamed package). Pass the host check (§2.5.6).
+- [x] 2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
 - [ ] 3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
 - [ ] 4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
 
