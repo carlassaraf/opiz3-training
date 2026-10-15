@@ -1,0 +1,38 @@
+homemac@lima-elt:~$ uname -m
+aarch64
+homemac@lima-elt:~$ grep PRETTY_NAME /etc/os-release
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+homemac@lima-elt:~$ ${CROSS_COMPILE}gcc --version | head -1
+aarch64-none-linux-gnu-gcc (Arm GNU Toolchain 14.2.Rel1 (Build arm-14.52)) 14.2.1 20241119
+homemac@lima-elt:~$ kas --version
+kas 4.7 (configuration format version 18, earliest compatible version 1)
+homemac@lima-elt:~$ sysctl kernel.apparmor_restrict_unprivileged_userns
+kernel.apparmor_restrict_unprivileged_userns = 0
+homemac@lima-elt:~$ free -h; swapon --show
+               total        used        free      shared  buff/cache   available
+Mem:           9.7Gi       479Mi       6.8Gi       1.1Mi       2.6Gi       9.2Gi
+Swap:          8.0Gi          0B       8.0Gi
+NAME      TYPE SIZE USED PRIO
+/swapfile file   8G   0B   -2
+homemac@lima-elt:~$ df -h /work
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1       338G   12G  327G   4% /
+homemac@lima-elt:~$ systemctl is-active tftpd-hpa nfs-kernel-server ssh
+active
+active
+active
+homemac@lima-elt:~$ ip -4 addr show | grep 'inet '
+    inet 127.0.0.1/8 scope host lo
+    inet 192.168.5.15/24 metric 200 brd 192.168.5.255 scope global dynamic eth0
+    inet 192.168.0.238/24 metric 100 brd 192.168.0.255 scope global dynamic lima0
+
+carlassaraf@Mac-1ed379c88981 ~ % ssh elt true && ssh homemac@mini 'ls /dev/cu.usbserial-*' && ping -c1 lima-elt.local
+
+(homemac@mini) Password:
+/dev/cu.usbserial-0001
+PING lima-elt.local (192.168.0.238): 56 data bytes
+64 bytes from 192.168.0.238: icmp_seq=0 ttl=64 time=10.983 ms
+
+--- lima-elt.local ping statistics ---
+1 packets transmitted, 1 packets received, 0.0% packet loss
+round-trip min/avg/max/stddev = 10.983/10.983/10.983/0.000 ms
