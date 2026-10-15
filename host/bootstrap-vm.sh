@@ -23,12 +23,14 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   iputils-ping libacl1 lz4 locales python3 python3-git python3-jinja2 \
   python3-pexpect python3-pip python3-subunit socat texinfo unzip wget \
   xz-utils zstd \
+  autoconf automake libtool libtool-bin cmake gettext gperf help2man \
   bc bison flex libssl-dev libncurses-dev libgnutls28-dev libelf-dev \
   device-tree-compiler u-boot-tools swig python3-dev python3-setuptools \
   python3-pyelftools python3-venv pipx rsync patch perl bzip2 \
   ca-certificates curl vim less tmux tree jq kmod htop \
   openssh-server avahi-daemon libnss-mdns \
   bmap-tools mtools dosfstools e2fsprogs parted \
+  genext2fs mtd-utils squashfs-tools \
   qemu-system-arm qemu-utils \
   tftpd-hpa nfs-kernel-server
 

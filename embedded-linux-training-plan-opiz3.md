@@ -177,8 +177,8 @@ EOF
 
 `bootstrap-vm.sh` (shipped with this plan) installs:
 
-- the Yocto Scarthgap host packages, plus Buildroot, kernel, U-Boot and TF-A build dependencies, QEMU, `kas`, and an mDNS responder (the VM answers as `lima-elt.local`);
-- the **Arm GNU Toolchain 14.2.Rel1**, AArch64-hosted, in `/opt/toolchain`, with `CROSS_COMPILE=aarch64-none-linux-gnu-` and `ARCH=arm64` exported. The book's Bootlin toolchain only ships for x86-64 hosts, and Arm publishes no AArch64-hosted Linux-target build before 14.2. That makes it GCC 14 instead of the book's GCC 13; the concepts are the same;
+- the Yocto Scarthgap host packages, plus Buildroot, kernel, U-Boot and TF-A build dependencies, the book's Chapter 2 package list (Autotools, CMake, `gperf`, …), filesystem-image tools for Chapters 5 and 9 (`genext2fs`, `mtd-utils`, `squashfs-tools`), QEMU, `kas`, and an mDNS responder (the VM answers as `lima-elt.local`). Docker (Chapter 16) is installed in M12;
+- the **Arm GNU Toolchain 14.2.Rel1** (GCC 14.2), AArch64-hosted, in `/opt/toolchain`, with `CROSS_COMPILE=aarch64-none-linux-gnu-` and `ARCH=arm64` exported. The book's Bootlin toolchain only ships for x86-64 hosts, and Arm publishes no AArch64-hosted Linux-target build before 14.2. That makes it GCC 14 instead of the book's GCC 13.2; the concepts are the same, but expect some new GCC 14 warnings (some are now errors) when building older code;
 - a **TFTP server** on `/srv/tftp` and an **NFS server** exporting `/srv/nfs/rootfs` to the LAN (M3/M4);
 - `/work` for build trees and caches (`/work/cache/downloads`, `/work/cache/sstate`, `/work/build`), all on the VM's ext4 disk;
 - your MacBook's SSH key.
@@ -207,7 +207,7 @@ Daily use:
 
 ```sh
 ssh elt                              # build shell (use tmux inside for long builds)
-code --remote ssh-remote+elt ~/el-training   # VS Code on the VM's files
+code --remote ssh-remote+elt /home/homemac.guest/el-training   # VS Code on the VM's files
 ssh -t macmini tmux attach -t serial         # Orange Pi console; detach: Ctrl-b d
 ssh macmini 'limactl start elt'              # after a Mac mini reboot
 ```
@@ -247,7 +247,7 @@ On the VM (`ssh elt`):
 ```sh
 uname -m                                       # aarch64
 grep PRETTY_NAME /etc/os-release               # Ubuntu 24.04.x LTS
-${CROSS_COMPILE}gcc --version | head -1        # Arm GNU Toolchain 14.2.rel1
+${CROSS_COMPILE}gcc --version | head -1        # Arm GNU Toolchain 14.2.Rel1
 kas --version                                  # kas 4.x
 sysctl kernel.apparmor_restrict_unprivileged_userns   # = 0
 free -h; swapon --show                         # ~10 GB RAM, 8 GB swap
@@ -355,13 +355,32 @@ Use this table in the first kick-off. Trainees already know half of embedded Lin
 
 ## 6. Modules
 
-Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, then the OPiZ3 port), **Exit checks** (what must be demonstrated), and **Review questions**.
+Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, then the OPiZ3 port), **Exit checks** (what must be demonstrated), and **Review questions**. Reading, labs, exit checks and review questions are checklists: tick `- [x]` as you go and commit the plan with your evidence. A module is done when all its exit checks are ticked; then tick it below.
+
+**Progress**
+- [ ] M0 — Onboarding & board tour (Week 1) · Chapter 1
+- [ ] M1 — Toolchains (Week 2) · Chapter 2
+- [ ] M2 — Bootloaders (Week 3) · Chapter 3
+- [ ] M3 — Configuring and building the kernel (Week 4) · Chapter 4
+- [ ] M4 — Building a root filesystem (Week 5) · Chapter 5
+- [ ] M5 — Selecting a build system (Weeks 6–7) · Chapter 6
+- [ ] M6 — Developing with Yocto (Week 8) · Chapter 7
+- [ ] M7 — Yocto under the hood (Week 9) · Chapter 8
+- [ ] M8 — Creating a storage strategy (Week 10) · Chapter 9
+- [ ] M9 — Updating software in the field (Week 11) · Chapter 10
+- [ ] M10 — Device drivers & add-on boards (Week 12) · Chapters 11 & 12
+- [ ] M11 — init & power management (Week 13) · Chapters 13 & 14
+- [ ] M12 — Python & containers (Week 14) · Chapters 15 & 16
+- [ ] M13 — Processes, threads & memory (Week 15) · Chapters 17 & 18
+- [ ] M14 — Debugging, profiling & tracing (Week 16) · Chapters 19 & 20
+- [ ] M15 — Real-time programming (Week 17) · Chapter 21
+- [ ] Capstone — IoT gateway on Orange Pi Zero 3 (Week 18)
 
 ---
 
 ### M0 — Onboarding & board tour (Week 1) · Chapter 1
 
-**Reading:** Chapter 1 + the repo README (errata).
+- [ ] **Reading:** Chapter 1 + the repo README (errata).
 
 **Objectives**
 - Understand when (and when not) to choose Linux; the four elements: toolchain, bootloader, kernel, root filesystem.
@@ -369,38 +388,40 @@ Each module lists: **Reading**, **Objectives**, **Labs** (book exercise first, t
 - Provision the Ubuntu 24.04 host as the book describes (here: the arm64 `elt` VM on the Mac mini).
 
 **Labs**
-1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Compare the book's Chapter 1 package list with `host/bootstrap-vm.sh`; every package the book installs must be accounted for. Pass the host check (§2.5.6).
-2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
-3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
-4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
+- [ ] 1. Provision the host: set up the Mac mini, the `elt` VM and the MacBook (§2.5.2–2.5.4). Chapter 1 has no host package list: the book installs packages chapter by chapter, starting with the full list in Chapter 2's *Technical requirements*. Search the book for every `apt install` / `apt-get install` run on the host and compare with `host/bootstrap-vm.sh`; every package must be either installed by the script or listed in `notes/m0-host-packages.md` with the reason it's not needed (e.g. crosstool-NG-only dependencies, or a renamed package). Pass the host check (§2.5.6).
+- [ ] 2. Wire the serial adapter (GND, TX, RX — **never** connect VCC). Plug the adapter into the Mac mini and start the logged `tio` session (§2.5.2, step 7); attach from the MacBook with `ssh -t macmini tmux attach -t serial`.
+- [ ] 3. Flash the vendor Debian/Ubuntu image, boot it, and do a **board tour**: `cat /proc/cpuinfo`, `cat /proc/device-tree/model`, `lsblk`, `ip link`, `cat /proc/mtd` (if enabled), `dmesg | less`.
+- [ ] 4. License audit: list the kernel version and bootloader of the vendor image and find where its sources are published. Write a one-page note on what the company would need to provide if it shipped that image in a product.
 
 **Exit checks**
-- Serial log in `evidence/m0-vendor-boot.log` showing the full boot from SPL to login prompt.
-- `notes/m0-board-tour.md` with SoC, RAM, storage devices, network interfaces, kernel version.
-- License note reviewed by the instructor.
+- [ ] Serial log in `evidence/m0-vendor-boot.log` showing the full boot from SPL to login prompt.
+- [ ] `notes/m0-board-tour.md` with SoC, RAM, storage devices, network interfaces, kernel version.
+- [ ] License note reviewed by the instructor.
 
 **Review questions**
-- What are the four elements of embedded Linux, and which one does the Boot ROM load?
-- Why does GPLv3 matter for locked-down IoT devices?
+- [ ] What are the four elements of embedded Linux, and which one does the Boot ROM load?
+- [ ] Why does GPLv3 matter for locked-down IoT devices?
 
 ---
 
 ### M1 — Toolchains (Week 2) · Chapter 2
 
-**Reading:** Chapter 2.
+- [ ] **Reading:** Chapter 2.
 
 **Objectives**
 - Toolchain anatomy: binutils, GCC, C library, kernel headers; tuple naming; sysroot.
 - Static vs dynamic linking, shared library versioning, `pkg-config`, cross-compiling Make/Autotools/CMake projects.
 
 **Labs**
-1. Use the toolchain installed by `bootstrap-vm.sh` in `/opt/toolchain`: **Arm GNU Toolchain 14.2.Rel1**, AArch64-hosted (`aarch64-none-linux-gnu-`). The book uses the Bootlin aarch64 toolchain 2024.02-1, which only ships for x86-64 hosts. Read the book's installation steps, reproduce them by hand with the Arm tarball in a scratch directory, and note in your M1 notes how the tuple and sysroot layout differ from Bootlin's (`aarch64-buildroot-linux-gnu-`).
-2. Do every book exercise: `-v` / `-print-sysroot`, build the `Chapter02/library` example as static and shared library.
-3. OPiZ3 port: cross-compile a `hello` and the library example, `scp` them to the vendor image, run them.
-4. Cross-compile a real Autotools project and a CMake project (e.g. `libgpiod` and a small CMake app) using a CMake toolchain file you write yourself.
-5. Break it on purpose: run a dynamically linked binary whose libc doesn't match the target. Capture and explain the error.
+- [ ] 1. Use the toolchain installed by `bootstrap-vm.sh` in `/opt/toolchain`: **Arm GNU Toolchain 14.2.Rel1** (GCC 14.2), AArch64-hosted (`aarch64-none-linux-gnu-`). The book uses the Bootlin aarch64 toolchain 2024.02-1 (GCC 13.2), which only ships for x86-64 hosts. Read the book's installation steps, reproduce them by hand with the Arm tarball in a scratch directory, and note in your M1 notes how the tuple and sysroot layout differ from Bootlin's (`aarch64-buildroot-linux-gnu-`).
+- [ ] 2. Do every book exercise: `-v` / `-print-sysroot`, build the `Chapter02/library` example as static and shared library.
+- [ ] 3. OPiZ3 port: cross-compile a `hello` and the library example, `scp` them to the vendor image, run them.
+- [ ] 4. Cross-compile a real Autotools project and a CMake project (e.g. `libgpiod` and a small CMake app) using a CMake toolchain file you write yourself.
+- [ ] 5. Break it on purpose: run a dynamically linked binary whose libc doesn't match the target. Capture and explain the error.
 
 **Exit checks**
+- [ ] The commands below give the expected output (saved under `evidence/`).
+
 ```sh
 $ file hello
 hello: ELF 64-bit LSB executable, ARM aarch64, ...
@@ -408,59 +429,61 @@ hello: ELF 64-bit LSB executable, ARM aarch64, ...
 $ ./hello            # prints expected output
 $ ldd ./hello-dyn    # (or readelf -d) shows expected NEEDED libs
 ```
-- CMake toolchain file committed to `labs/m01-toolchain/`.
+- [ ] CMake toolchain file committed to `labs/m01-toolchain/`.
 
 **Review questions**
-- What is the sysroot and why must it match the target's libraries?
-- Why is glibc vs musl a product decision, not just a technical one?
+- [ ] What is the sysroot and why must it match the target's libraries?
+- [ ] Why is glibc vs musl a product decision, not just a technical one?
 
 ---
 
 ### M2 — Bootloaders (Week 3) · Chapter 3
 
-**Reading:** Chapter 3.
+- [ ] **Reading:** Chapter 3.
 
 **Objectives**
 - Boot sequence phases; device tree basics (Zephyr engineers: compare!); U-Boot build, environment, commands, boot scripts, FIT images; porting U-Boot to a new board.
 
 **Labs**
-1. Book path: build U-Boot for QEMU and boot it.
-2. Read the BeaglePlay sections and draw both boot chains (BeaglePlay vs OPiZ3) side by side in your notes.
-3. OPiZ3 port — build your own boot chain:
-   - Build **TF-A** BL31: `make CROSS_COMPILE=aarch64-linux- PLAT=sun50i_h616 DEBUG=0 bl31` (use a TF-A release with H618 support; verify on the linux-sunxi wiki).
-   - Build **U-Boot v2024.04** (book version): `make orangepi_zero3_defconfig && make BL31=<path>/bl31.bin SCP=/dev/null CROSS_COMPILE=aarch64-linux-`.
-   - Write `u-boot-sunxi-with-spl.bin` to the SD card at 8 KiB: copy it to the Mac mini and `sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/rdiskN bs=1k seek=8` (§2.5.5). Then also write it to the SPI NOR from the U-Boot prompt, so you always have a fallback U-Boot.
-4. FEL boot: put the board in FEL (no SD card), then `sunxi-fel -v uboot u-boot-sunxi-with-spl.bin`. This is your recovery path for the rest of the course.
-5. U-Boot hands-on: `printenv`, `setenv`/`saveenv`, `mmc info`, `md`, `fdt` commands, `sf probe` on the SPI NOR, write a `boot.cmd` → `boot.scr` with `mkimage`.
-6. Porting exercise (book's "nova" equivalent): create a custom board defconfig `opiz3_training_defconfig` that changes the prompt to `opiz3 => ` and sets a custom default environment.
+- [ ] 1. Book path: build U-Boot for QEMU and boot it.
+- [ ] 2. Read the BeaglePlay sections and draw both boot chains (BeaglePlay vs OPiZ3) side by side in your notes.
+- [ ] 3. OPiZ3 port — build your own boot chain:
+  - [ ] Build **TF-A** BL31: `make CROSS_COMPILE=aarch64-none-linux-gnu- PLAT=sun50i_h616 DEBUG=0 bl31` (use a TF-A release with H618 support; verify on the linux-sunxi wiki).
+  - [ ] Build **U-Boot v2024.04** (book version): `make orangepi_zero3_defconfig && make BL31=<path>/bl31.bin SCP=/dev/null CROSS_COMPILE=aarch64-none-linux-gnu-`.
+  - [ ] Write `u-boot-sunxi-with-spl.bin` to the SD card at 8 KiB: copy it to the Mac mini and `sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/rdiskN bs=1k seek=8` (§2.5.5). Then also write it to the SPI NOR from the U-Boot prompt, so you always have a fallback U-Boot.
+- [ ] 4. FEL boot: put the board in FEL (no SD card), then `sunxi-fel -v uboot u-boot-sunxi-with-spl.bin`. This is your recovery path for the rest of the course.
+- [ ] 5. U-Boot hands-on: `printenv`, `setenv`/`saveenv`, `mmc info`, `md`, `fdt` commands, `sf probe` on the SPI NOR, write a `boot.cmd` → `boot.scr` with `mkimage`.
+- [ ] 6. Porting exercise (book's "nova" equivalent): create a custom board defconfig `opiz3_training_defconfig` that changes the prompt to `opiz3 => ` and sets a custom default environment.
 
 **Exit checks**
-- Serial log showing `U-Boot SPL 2024.04...`, `NOTICE: BL31: ...`, and the custom `opiz3 =>` prompt.
-- FEL boot log.
-- `boot.cmd` committed.
+- [ ] Serial log showing `U-Boot SPL 2024.04...`, `NOTICE: BL31: ...`, and the custom `opiz3 =>` prompt.
+- [ ] FEL boot log.
+- [ ] `boot.cmd` committed.
 
 **Review questions**
-- Why does the H618 need TF-A before U-Boot proper? What does BL31 provide to Linux (hint: PSCI)?
-- What is the difference between the U-Boot DT and the kernel DT?
+- [ ] Why does the H618 need TF-A before U-Boot proper? What does BL31 provide to Linux (hint: PSCI)?
+- [ ] What is the difference between the U-Boot DT and the kernel DT?
 
 ---
 
 ### M3 — Configuring and building the kernel (Week 4) · Chapter 4
 
-**Reading:** Chapter 4.
+- [ ] **Reading:** Chapter 4.
 
 **Objectives**
 - Choosing a kernel (mainline vs vendor vs LTS), Kconfig/Kbuild, building `Image`, modules and DTBs, booting, early-boot debugging, porting to a new board via DT.
 
 **Labs**
-1. Book path: build Linux 6.6 for QEMU AArch64 and boot it.
-2. OPiZ3 port: clone mainline `v6.6.y` (stable), `make ARCH=arm64 CROSS_COMPILE=aarch64-linux- defconfig`, build `Image`, `modules`, `dtbs`. Confirm `arch/arm64/boot/dts/allwinner/sun50i-h618-orangepi-zero3.dtb` exists.
-3. Boot from U-Boot: load `Image` + DTB from the SD card FAT partition (`load mmc 0:1 ...`) and `booti`. Expect the "VFS: Unable to mount root fs" panic — that's success for this lab.
-4. Boot over the network: TFTP `Image` + DTB from the `elt` VM (`/srv/tftp`), and save a `netboot` environment you'll keep using (§2.5.5).
-5. Kernel config: use `menuconfig` to enable a feature, then produce a minimal **config fragment** (`.cfg`) — you'll reuse this format in Yocto.
-6. DT exercise: create `sun50i-h618-orangepi-zero3-training.dts` that includes the upstream DTS, changes `model`, enables `i2c3` on the 26-pin header, and adds a `gpio-leds` node for an LED on a header GPIO. Boot it and check.
+- [ ] 1. Book path: build Linux 6.6 for QEMU AArch64 and boot it.
+- [ ] 2. OPiZ3 port: clone mainline `v6.6.y` (stable), `make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- defconfig`, build `Image`, `modules`, `dtbs`. Confirm `arch/arm64/boot/dts/allwinner/sun50i-h618-orangepi-zero3.dtb` exists.
+- [ ] 3. Boot from U-Boot: load `Image` + DTB from the SD card FAT partition (`load mmc 0:1 ...`) and `booti`. Expect the "VFS: Unable to mount root fs" panic — that's success for this lab.
+- [ ] 4. Boot over the network: TFTP `Image` + DTB from the `elt` VM (`/srv/tftp`), and save a `netboot` environment you'll keep using (§2.5.5).
+- [ ] 5. Kernel config: use `menuconfig` to enable a feature, then produce a minimal **config fragment** (`.cfg`) — you'll reuse this format in Yocto.
+- [ ] 6. DT exercise: create `sun50i-h618-orangepi-zero3-training.dts` that includes the upstream DTS, changes `model`, enables `i2c3` on the 26-pin header, and adds a `gpio-leds` node for an LED on a header GPIO. Boot it and check.
 
 **Exit checks**
+- [ ] The commands below give the expected output (saved under `evidence/`).
+
 ```sh
 # kernel panic log captured, then later (after M4):
 $ uname -r                    # 6.6.x
@@ -469,59 +492,61 @@ $ ls /sys/class/leds/         # your LED appears
 ```
 
 **Review questions**
-- What happens between `booti` and `init`? Name the console-related bootargs and why `earlycon` helps.
-- Why is mainline support for the H618 a business advantage over the vendor 6.1 BSP kernel?
+- [ ] What happens between `booti` and `init`? Name the console-related bootargs and why `earlycon` helps.
+- [ ] Why is mainline support for the H618 a business advantage over the vendor 6.1 BSP kernel?
 
 ---
 
 ### M4 — Building a root filesystem (Week 5) · Chapter 5
 
-**Reading:** Chapter 5 (apply errata for p.159: rebuild the kernel **without** built-in initramfs before NFS root).
+- [ ] **Reading:** Chapter 5 (apply errata for p.159: rebuild the kernel **without** built-in initramfs before NFS root).
 
 **Objectives**
 - Rootfs directory layout, BusyBox (vs ToyBox), libraries, device nodes, `proc`/`sysfs`, kernel modules, initramfs (standalone and built-in), init with `inittab`, user accounts, `devtmpfs`/`mdev`, network config, TFTP/NFS workflow.
 
 **Labs**
-1. Build the staging rootfs exactly as the book does (BusyBox, libs copied from the toolchain sysroot with the repo's `list-libs` helper).
-2. QEMU boot with initramfs (book path).
-3. OPiZ3: boot the same rootfs as initramfs, then from the SD card ext4 partition, then via **NFS root** from the `elt` VM (`/srv/nfs/rootfs`).
-4. Add an `inittab`, user accounts, `mdev`, and static network config. Mount `proc`, `sys`, `devtmpfs`.
-5. Install your kernel modules into the rootfs and load one with `modprobe`.
+- [ ] 1. Build the staging rootfs exactly as the book does (BusyBox, libs copied from the toolchain sysroot with the repo's `list-libs` helper).
+- [ ] 2. QEMU boot with initramfs (book path).
+- [ ] 3. OPiZ3: boot the same rootfs as initramfs, then from the SD card ext4 partition, then via **NFS root** from the `elt` VM (`/srv/nfs/rootfs`).
+- [ ] 4. Add an `inittab`, user accounts, `mdev`, and static network config. Mount `proc`, `sys`, `devtmpfs`.
+- [ ] 5. Install your kernel modules into the rootfs and load one with `modprobe`.
 
 **Exit checks**
-- Three boot logs: initramfs, SD rootfs, NFS rootfs.
-- On NFS: create a file on the host's export, `cat` it on the target without rebooting.
-- `ls -l /lib/modules/$(uname -r)` populated; `lsmod` shows a loaded module.
+- [ ] Three boot logs: initramfs, SD rootfs, NFS rootfs.
+- [ ] On NFS: create a file on the host's export, `cat` it on the target without rebooting.
+- [ ] `ls -l /lib/modules/$(uname -r)` populated; `lsmod` shows a loaded module.
 
 **Review questions**
-- Why is building rootfs by hand a bad idea for products — and why did we do it anyway?
-- What does `devtmpfs` give you that a static `/dev` doesn't?
+- [ ] Why is building rootfs by hand a bad idea for products — and why did we do it anyway?
+- [ ] What does `devtmpfs` give you that a static `/dev` doesn't?
 
 ---
 
 ### M5 — Selecting a build system (Weeks 6–7) · Chapter 6
 
-**Reading:** Chapter 6.
+- [ ] **Reading:** Chapter 6.
 
 **Objectives**
 - Build system concepts, package formats, Buildroot (configs, custom board, packages, licenses), Yocto intro (Poky, layers, BitBake, images, `MACHINE`), creating a BSP.
 
 **Labs — Buildroot (Week 6)**
-1. Buildroot 2024.02 LTS (book version): `make orangepi_zero3_defconfig && make`. Flash `output/images/sdcard.img`, boot.
-2. Book "nova" equivalent: create `BR2_EXTERNAL` tree `br2-opiz3-training` with your own board directory, `post-image.sh`, genimage config, defconfig pointing to **your** custom U-Boot defconfig and DTS from M2/M3.
-3. Add a custom package (your `hello` from M1) and generate the license manifest (`make legal-info`).
+- [ ] 1. Buildroot 2024.02 LTS (book version): `make orangepi_zero3_defconfig && make`. Flash `output/images/sdcard.img`, boot.
+- [ ] 2. Book "nova" equivalent: create `BR2_EXTERNAL` tree `br2-opiz3-training` with your own board directory, `post-image.sh`, genimage config, defconfig pointing to **your** custom U-Boot defconfig and DTS from M2/M3.
+- [ ] 3. Add a custom package (your `hello` from M1) and generate the license manifest (`make legal-info`).
 
 **Labs — Yocto (Week 7) — start of the Yocto spine**
-1. Book path: build `core-image-minimal` for `qemuarm64` on Scarthgap and run it with `runqemu`.
-2. Create the team layers with `bitbake-layers create-layer`: `meta-opiz3-bsp` and `meta-opiz3-apps`. Set up the build reproducibly with **kas** (or a repo manifest) pinned to Scarthgap: `poky`, `meta-openembedded`, `meta-arm` (for TF-A).
-3. Write the **machine** `opiz3.conf` (see Appendix A for a starting skeleton):
-   - TF-A from `meta-arm` (`TFA_PLATFORM = "sun50i_h616"`),
-   - U-Boot with a `.bbappend` passing `BL31=` and `SCP=/dev/null`, using your training defconfig,
-   - `linux-yocto` 6.6 with `defconfig` + your fragments and DTS,
-   - a `.wks` file placing `u-boot-sunxi-with-spl.bin` at 8 KiB.
-4. Before writing it, check whether the community `meta-sunxi` layer (Scarthgap branch) has an Orange Pi Zero 3 machine. If it does, build it too and write a diff-style review comparing it with yours. If it doesn't, note that you just did what a BSP vendor does.
+- [ ] 1. Book path: build `core-image-minimal` for `qemuarm64` on Scarthgap and run it with `runqemu`.
+- [ ] 2. Create the team layers with `bitbake-layers create-layer`: `meta-opiz3-bsp` and `meta-opiz3-apps`. Set up the build reproducibly with **kas** (or a repo manifest) pinned to Scarthgap: `poky`, `meta-openembedded`, `meta-arm` (for TF-A).
+- [ ] 3. Write the **machine** `opiz3.conf` (see Appendix A for a starting skeleton):
+  - [ ] TF-A from `meta-arm` (`TFA_PLATFORM = "sun50i_h616"`),
+  - [ ] U-Boot with a `.bbappend` passing `BL31=` and `SCP=/dev/null`, using your training defconfig,
+  - [ ] `linux-yocto` 6.6 with `defconfig` + your fragments and DTS,
+  - [ ] a `.wks` file placing `u-boot-sunxi-with-spl.bin` at 8 KiB.
+- [ ] 4. Before writing it, check whether the community `meta-sunxi` layer (Scarthgap branch) has an Orange Pi Zero 3 machine. If it does, build it too and write a diff-style review comparing it with yours. If it doesn't, note that you just did what a BSP vendor does.
 
 **Exit checks**
+- [ ] The commands below give the expected output (saved under `evidence/`).
+
 ```sh
 $ bitbake core-image-minimal        # MACHINE = "opiz3", completes with no errors
 $ bmaptool copy http://lima-elt.local:8000/...wic.bz2 /dev/mmcblk0   # on the net-booted board (§2.5.5)
@@ -530,70 +555,72 @@ $ cat /etc/os-release               # Poky / scarthgap
 $ uname -r                          # 6.6.x-yocto-standard
 $ cat /proc/device-tree/model       # your custom model
 ```
-- Buildroot `legal-info` output and Yocto `tmp/deploy/licenses/` reviewed in notes.
+- [ ] Buildroot `legal-info` output and Yocto `tmp/deploy/licenses/` reviewed in notes.
 
 **Review questions**
-- Buildroot vs Yocto: when would you pick each for an IoT product?
-- Why does the bootloader need to be in `EXTRA_IMAGEDEPENDS` / `do_image_wic[depends]`?
+- [ ] Buildroot vs Yocto: when would you pick each for an IoT product?
+- [ ] Why does the bootloader need to be in `EXTRA_IMAGEDEPENDS` / `do_image_wic[depends]`?
 
 ---
 
 ### M6 — Developing with Yocto (Week 8) · Chapter 7
 
-**Reading:** Chapter 7.
+- [ ] **Reading:** Chapter 7.
 
 **Objectives**
 - Layers and BSPs in practice, Wi-Fi/Bluetooth via BSP, `devtool` workflow (add, modify, upgrade, finish), package-based workflow and package feeds, extensible SDK, custom distro and image recipes.
 
 **Labs**
-1. Create a **custom distro** `opiz3-iot` (`conf/distro/opiz3-iot.conf`): systemd, `ipv6`, `wifi`, package management (ipk or rpm), `INIT_MANAGER = "systemd"`.
-2. Create an image recipe `opiz3-iot-image` (start from `core-image-base`) with SSH, `libgpiod-tools`, `i2c-tools`, `iw`.
-3. **Wi-Fi:** enable the USB dongle driver with a kernel config fragment, add the firmware package from `linux-firmware`, configure `wpa_supplicant` (or `iwd`) via a recipe that installs a config template + systemd unit.
-4. `devtool` workflow: `devtool add` a small C or Rust app from a Git repo; `devtool modify` `linux-yocto` to add a DT change; `devtool deploy-target` to the board; `devtool finish` into your layers.
-5. Package feed: serve `tmp/deploy/ipk` over HTTP from the `elt` VM, configure `opkg` on target, install a package without reflashing.
-6. Extensible SDK: `bitbake opiz3-iot-image -c populate_sdk_ext`, install it, build an app outside BitBake.
+- [ ] 1. Create a **custom distro** `opiz3-iot` (`conf/distro/opiz3-iot.conf`): systemd, `ipv6`, `wifi`, package management (ipk or rpm), `INIT_MANAGER = "systemd"`.
+- [ ] 2. Create an image recipe `opiz3-iot-image` (start from `core-image-base`) with SSH, `libgpiod-tools`, `i2c-tools`, `iw`.
+- [ ] 3. **Wi-Fi:** enable the USB dongle driver with a kernel config fragment, add the firmware package from `linux-firmware`, configure `wpa_supplicant` (or `iwd`) via a recipe that installs a config template + systemd unit.
+- [ ] 4. `devtool` workflow: `devtool add` a small C or Rust app from a Git repo; `devtool modify` `linux-yocto` to add a DT change; `devtool deploy-target` to the board; `devtool finish` into your layers.
+- [ ] 5. Package feed: serve `tmp/deploy/ipk` over HTTP from the `elt` VM, configure `opkg` on target, install a package without reflashing.
+- [ ] 6. Extensible SDK: `bitbake opiz3-iot-image -c populate_sdk_ext`, install it, build an app outside BitBake.
 
 **Exit checks**
-- On target: `iw dev` shows the interface; `ping` works over Wi-Fi.
-- `opkg install <pkg>` from your feed succeeds.
-- Git history of `meta-opiz3-*` shows the `devtool finish` result (patches + bbappend).
+- [ ] On target: `iw dev` shows the interface; `ping` works over Wi-Fi.
+- [ ] `opkg install <pkg>` from your feed succeeds.
+- [ ] Git history of `meta-opiz3-*` shows the `devtool finish` result (patches + bbappend).
 
 ---
 
 ### M7 — Yocto under the hood (Week 9) · Chapter 8
 
-**Reading:** Chapter 8.
+- [ ] **Reading:** Chapter 8.
 
 **Objectives**
 - Build workflow (fetch → unpack → patch → configure → compile → install → package), metadata syntax, variable assignment/override rules, `bitbake-getvar`, `bitbake -e`, task logs in `tmp/work`, dependency graphs, `buildhistory`, sstate.
 
 **Labs**
-1. Instructor provides **five deliberately broken recipes** (wrong `SRC_URI` checksum, missing `DEPENDS`, wrong `FILES:${PN}`, override precedence bug, `do_install` path error). Trainee fixes each and writes a 3-line root-cause note.
-2. Use `bitbake-getvar` / `bitbake -e` to trace where `IMAGE_INSTALL` gets each value.
-3. Enable `buildhistory`, change one package, and diff image contents between builds.
-4. `bitbake -g` + `oe-depends-dot` (or `task-depends.dot`) — explain why changing a kernel config rebuilds what it rebuilds.
-5. Measure the sstate effect: time a build from an empty `tmp/` with the sstate cache present, then with an empty `SSTATE_DIR` pointed at a scratch directory (start that one before going to bed).
+- [ ] 1. Instructor provides **five deliberately broken recipes** (wrong `SRC_URI` checksum, missing `DEPENDS`, wrong `FILES:${PN}`, override precedence bug, `do_install` path error). Trainee fixes each and writes a 3-line root-cause note.
+- [ ] 2. Use `bitbake-getvar` / `bitbake -e` to trace where `IMAGE_INSTALL` gets each value.
+- [ ] 3. Enable `buildhistory`, change one package, and diff image contents between builds.
+- [ ] 4. `bitbake -g` + `oe-depends-dot` (or `task-depends.dot`) — explain why changing a kernel config rebuilds what it rebuilds.
+- [ ] 5. Measure the sstate effect: time a build from an empty `tmp/` with the sstate cache present, then with an empty `SSTATE_DIR` pointed at a scratch directory (start that one before going to bed).
 
 **Exit checks**
-- All five broken recipes build; root-cause notes reviewed.
-- Buildhistory diff committed to evidence.
+- [ ] All five broken recipes build; root-cause notes reviewed.
+- [ ] Buildhistory diff committed to evidence.
 
 ---
 
 ### M8 — Creating a storage strategy (Week 10) · Chapter 9
 
-**Reading:** Chapter 9.
+- [ ] **Reading:** Chapter 9.
 
 **Objectives**
 - Flash types (NOR, raw NAND, managed flash), MTD, filesystems (ext4, F2FS, UBIFS, SquashFS, tmpfs), read-only rootfs, wear considerations, partition layout.
 
 **Labs**
-1. Inspect the SD card with `mmc-utils`-style tooling and `/sys/block/mmcblk0/`; discuss SD card endurance for IoT (a frequent field failure).
-2. **SPI NOR:** enable MTD + SPI NOR in kernel and DT, inspect `/proc/mtd`, `mtdinfo`; create a UBI volume and mount **UBIFS** on the 16 MB NOR; write a JFFS2 image for comparison.
-3. **Read-only rootfs** in Yocto: `IMAGE_FEATURES += "read-only-rootfs"`, separate ext4 **data** partition in the `.wks`, `/var/log` to tmpfs or the data partition, overlayfs for `/etc` if needed.
-4. Optional: put U-Boot in SPI NOR and boot the rootfs from SD (makes the SD card hot-swappable for the rest of the course).
+- [ ] 1. Inspect the SD card with `mmc-utils`-style tooling and `/sys/block/mmcblk0/`; discuss SD card endurance for IoT (a frequent field failure).
+- [ ] 2. **SPI NOR:** enable MTD + SPI NOR in kernel and DT, inspect `/proc/mtd`, `mtdinfo`; create a UBI volume and mount **UBIFS** on the 16 MB NOR; write a JFFS2 image for comparison.
+- [ ] 3. **Read-only rootfs** in Yocto: `IMAGE_FEATURES += "read-only-rootfs"`, separate ext4 **data** partition in the `.wks`, `/var/log` to tmpfs or the data partition, overlayfs for `/etc` if needed.
+- [ ] 4. Optional: put U-Boot in SPI NOR and boot the rootfs from SD (makes the SD card hot-swappable for the rest of the course).
 
 **Exit checks**
+- [ ] The commands below give the expected output (saved under `evidence/`).
+
 ```sh
 $ touch /usr/test        # fails: Read-only file system
 $ mount | grep data      # data partition rw
@@ -605,163 +632,163 @@ $ mount | grep ubifs     # UBIFS mounted
 
 ### M9 — Updating software in the field (Week 11) · Chapter 10
 
-**Reading:** Chapter 10.
+- [ ] **Reading:** Chapter 10.
 
 **Objectives**
 - What to update, update strategies (symmetric A/B, asymmetric/recovery, atomic file updates), OTA architectures, Mender (local and OTA), balena, rollback and boot counting.
 
 **Labs**
-1. Book path: Mender on QEMU with Yocto (`meta-mender`, Scarthgap), local update with `mender-update install`.
-2. OPiZ3 port: integrate `meta-mender-core` into your image: U-Boot integration (boot counting, `bootlimit`, environment redundancy), A/B rootfs + data partition in the image. Expect U-Boot integration work — this is the real-world part.
-3. Perform an OTA update from a Mender server (hosted trial, or the open-source server self-hosted on the `elt` VM; it needs Docker there) to a new image that changes `/etc/issue`.
-4. **Rollback test:** deploy an image whose application service fails its health check (or kernel that panics); verify automatic rollback.
-5. balena: read and discuss (OPiZ3 is not a balenaOS device type). If a Raspberry Pi 4 is available, run the book's exercise on it.
-6. Short comparison note: Mender vs RAUC vs SWUpdate for the company's IoT products.
+- [ ] 1. Book path: Mender on QEMU with Yocto (`meta-mender`, Scarthgap), local update with `mender-update install`.
+- [ ] 2. OPiZ3 port: integrate `meta-mender-core` into your image: U-Boot integration (boot counting, `bootlimit`, environment redundancy), A/B rootfs + data partition in the image. Expect U-Boot integration work — this is the real-world part.
+- [ ] 3. Perform an OTA update from a Mender server (hosted trial, or the open-source server self-hosted on the `elt` VM; it needs Docker there) to a new image that changes `/etc/issue`.
+- [ ] 4. **Rollback test:** deploy an image whose application service fails its health check (or kernel that panics); verify automatic rollback.
+- [ ] 5. balena: read and discuss (OPiZ3 is not a balenaOS device type). If a Raspberry Pi 4 is available, run the book's exercise on it.
+- [ ] 6. Short comparison note: Mender vs RAUC vs SWUpdate for the company's IoT products.
 
 **Exit checks**
-- Evidence log of a successful A→B update and of an automatic B→A rollback (`fw_printenv` showing partition/boot count changes).
+- [ ] Evidence log of a successful A→B update and of an automatic B→A rollback (`fw_printenv` showing partition/boot count changes).
 
 ---
 
 ### M10 — Device drivers & add-on boards (Week 12) · Chapters 11 & 12
 
-**Reading:** Chapters 11 and 12 (apply errata pp. 359–360: module renamed `dummy-char`).
+- [ ] **Reading:** Chapters 11 and 12 (apply errata pp. 359–360: module renamed `dummy-char`).
 
 **Objectives**
 - Character/block/network devices, `/dev`, sysfs, finding drivers at runtime, user-space drivers (GPIO via `libgpiod`, LEDs, I2C via `i2c-dev`, SPI via `spidev`), writing and loading a kernel module, DT binding a driver.
 - Reading schematics/pinouts, wiring add-on peripherals, DT overlays, writing test programs.
 
 **Labs**
-1. Get the OPiZ3 schematic and 26-pin header pinout. Produce a pin map for I2C3, SPI1, UART5 and free GPIOs in your notes.
-2. **GPIO:** `gpiodetect`, `gpioinfo`, `gpioset`/`gpiomon` with LED + button; then a C program using the libgpiod v2 API. (Zephyr engineers: compare with `gpio_pin_configure_dt`.)
-3. **I2C:** wire the BME280, `i2cdetect -y <bus>`; read chip ID from user space. Then switch to the **kernel IIO driver** (`bmp280` driver supports BME280) through a DT node and read `/sys/bus/iio/devices/iio:device0/in_temp_input`. Discuss user-space vs kernel driver trade-offs.
-4. **SPI:** enable `spidev` (or the proper driver) via DT, talk to the SPI device with a C test program.
-5. **UART add-on:** GNSS module on UART5, read NMEA sentences (`cat /dev/ttyS5` or `gpsd`) — mirrors the book's add-on example.
-6. **Kernel module:** build the book's `dummy-char` module out-of-tree via a Yocto recipe in `meta-opiz3-apps` (`inherit module`), autoload it, `echo hello > /dev/dummy0`.
-7. **DT overlays:** turn the sensor/SPI/UART enablement into overlays (`.dtso`) applied by U-Boot (`fdt apply`) and packaged by Yocto.
+- [ ] 1. Get the OPiZ3 schematic and 26-pin header pinout. Produce a pin map for I2C3, SPI1, UART5 and free GPIOs in your notes.
+- [ ] 2. **GPIO:** `gpiodetect`, `gpioinfo`, `gpioset`/`gpiomon` with LED + button; then a C program using the libgpiod v2 API. (Zephyr engineers: compare with `gpio_pin_configure_dt`.)
+- [ ] 3. **I2C:** wire the BME280, `i2cdetect -y <bus>`; read chip ID from user space. Then switch to the **kernel IIO driver** (`bmp280` driver supports BME280) through a DT node and read `/sys/bus/iio/devices/iio:device0/in_temp_input`. Discuss user-space vs kernel driver trade-offs.
+- [ ] 4. **SPI:** enable `spidev` (or the proper driver) via DT, talk to the SPI device with a C test program.
+- [ ] 5. **UART add-on:** GNSS module on UART5, read NMEA sentences (`cat /dev/ttyS5` or `gpsd`) — mirrors the book's add-on example.
+- [ ] 6. **Kernel module:** build the book's `dummy-char` module out-of-tree via a Yocto recipe in `meta-opiz3-apps` (`inherit module`), autoload it, `echo hello > /dev/dummy0`.
+- [ ] 7. **DT overlays:** turn the sensor/SPI/UART enablement into overlays (`.dtso`) applied by U-Boot (`fdt apply`) and packaged by Yocto.
 
 **Exit checks**
-- LED toggles from your C program; button event printed.
-- IIO temperature reading in m°C plausible for the room.
-- `modprobe dummy-char && lsmod | grep dummy` and `dmesg` output.
-- Overlay toggled on/off without rebuilding the base DTB.
+- [ ] LED toggles from your C program; button event printed.
+- [ ] IIO temperature reading in m°C plausible for the room.
+- [ ] `modprobe dummy-char && lsmod | grep dummy` and `dmesg` output.
+- [ ] Overlay toggled on/off without rebuilding the base DTB.
 
 ---
 
 ### M11 — init & power management (Week 13) · Chapters 13 & 14
 
-**Reading:** Chapters 13 and 14.
+- [ ] **Reading:** Chapters 13 and 14.
 
 **Objectives**
 - BusyBox init, System V init, systemd (units, targets, dependencies, `systemd-analyze`); power: CPU frequency scaling, CPU idle states, device runtime PM, system sleep states.
 
 **Labs — init**
-1. Build three image variants on OPiZ3: BusyBox init (Buildroot), SysV (Yocto), systemd (Yocto, your distro). Compare boot time (`systemd-analyze`, serial timestamps with `grabserial` or `picocom` timestamps).
-2. Write a systemd service for a sensor-reading daemon with `Restart=on-failure`, `WatchdogSec=` (`sd_notify`), dependencies on `network-online.target`.
-3. Enable the hardware watchdog (`/dev/watchdog`, `RuntimeWatchdogSec=` in systemd) and prove that a hung system reboots.
+- [ ] 1. Build three image variants on OPiZ3: BusyBox init (Buildroot), SysV (Yocto), systemd (Yocto, your distro). Compare boot time (`systemd-analyze`, serial timestamps with `grabserial` or `picocom` timestamps).
+- [ ] 2. Write a systemd service for a sensor-reading daemon with `Restart=on-failure`, `WatchdogSec=` (`sd_notify`), dependencies on `network-online.target`.
+- [ ] 3. Enable the hardware watchdog (`/dev/watchdog`, `RuntimeWatchdogSec=` in systemd) and prove that a hung system reboots.
 
 **Labs — power**
-1. Inspect `/sys/devices/system/cpu/cpu*/cpufreq` and `cpuidle`. **If cpufreq is absent on 6.6 for the H618**, find in the kernel Git history when H616/H618 cpufreq/OPP support landed — a real "read the kernel log" exercise — and document it.
-2. Measure idle vs `stress-ng` load current with the USB power meter; repeat with CPUs offlined (`echo 0 > /sys/devices/system/cpu/cpu3/online`).
-3. Try `s2idle` (`echo freeze > /sys/power/state`) with a wakeup source; document what works and what doesn't on this SoC with mainline.
-4. Runtime PM: inspect `/sys/devices/.../power/runtime_status` for USB and MMC.
+- [ ] 1. Inspect `/sys/devices/system/cpu/cpu*/cpufreq` and `cpuidle`. **If cpufreq is absent on 6.6 for the H618**, find in the kernel Git history when H616/H618 cpufreq/OPP support landed — a real "read the kernel log" exercise — and document it.
+- [ ] 2. Measure idle vs `stress-ng` load current with the USB power meter; repeat with CPUs offlined (`echo 0 > /sys/devices/system/cpu/cpu3/online`).
+- [ ] 3. Try `s2idle` (`echo freeze > /sys/power/state`) with a wakeup source; document what works and what doesn't on this SoC with mainline.
+- [ ] 4. Runtime PM: inspect `/sys/devices/.../power/runtime_status` for USB and MMC.
 
 **Exit checks**
-- `systemd-analyze blame` output + boot-time comparison table.
-- Watchdog reboot captured on serial.
-- Power table (idle / load / CPUs offlined) in notes.
+- [ ] `systemd-analyze blame` output + boot-time comparison table.
+- [ ] Watchdog reboot captured on serial.
+- [ ] Power table (idle / load / CPUs offlined) in notes.
 
 ---
 
 ### M12 — Python & containers (Week 14) · Chapters 15 & 16
 
-**Reading:** Chapters 15 and 16 (errata p.452: install `docker-ce` on the host, not `docker.io`; here, install it in the `elt` VM if you didn't already for the Mender server in M9).
+- [ ] **Reading:** Chapters 15 and 16 (errata p.452: install `docker-ce` on the host, not `docker.io`; here, install it in the `elt` VM if you didn't already for the Mender server in M9).
 
 **Objectives**
 - Python packaging: pip, venv, `pyproject.toml`, conda vs pip, packaging Python for embedded targets with Yocto. Containers: Docker on the edge, building multi-arch images, deploying and updating containers.
 
 **Labs — Python**
-1. Write a small Python package `opiz3-sensor` (reads the BME280 via IIO sysfs, publishes MQTT with `paho-mqtt`), with `pyproject.toml`.
-2. Write its Yocto recipe (`inherit python_setuptools_build_meta` or `python_hatchling` depending on backend) and runtime dependencies from `meta-python`.
-3. Compare image sizes: Python app via recipes vs `pip install` on target vs a container.
+- [ ] 1. Write a small Python package `opiz3-sensor` (reads the BME280 via IIO sysfs, publishes MQTT with `paho-mqtt`), with `pyproject.toml`.
+- [ ] 2. Write its Yocto recipe (`inherit python_setuptools_build_meta` or `python_hatchling` depending on backend) and runtime dependencies from `meta-python`.
+- [ ] 3. Compare image sizes: Python app via recipes vs `pip install` on target vs a container.
 
 **Labs — containers**
-1. Add `meta-virtualization` and Docker to a variant of your image (`DISTRO_FEATURES += "virtualization"`).
-2. Build an **arm64** container on the host with `docker buildx`, push to a local registry, pull and run it on the OPiZ3.
-3. Run Mosquitto in a container and your Python app on the host OS (or vice versa); persist data on the data partition from M8.
-4. Discuss: containers vs Yocto packages vs Mender application updates — when does each make sense for an IoT fleet?
+- [ ] 1. Add `meta-virtualization` and Docker to a variant of your image (`DISTRO_FEATURES += "virtualization"`).
+- [ ] 2. Build an **arm64** container on the host with `docker buildx`, push to a local registry, pull and run it on the OPiZ3.
+- [ ] 3. Run Mosquitto in a container and your Python app on the host OS (or vice versa); persist data on the data partition from M8.
+- [ ] 4. Discuss: containers vs Yocto packages vs Mender application updates — when does each make sense for an IoT fleet?
 
 **Exit checks**
-- `mosquitto_sub` on the host receives sensor readings from the board.
-- `docker ps` on target shows the container; it restarts after a reboot.
+- [ ] `mosquitto_sub` on the host receives sensor readings from the board.
+- [ ] `docker ps` on target shows the container; it restarts after a reboot.
 
 ---
 
 ### M13 — Processes, threads & memory (Week 15) · Chapters 17 & 18
 
-**Reading:** Chapters 17 and 18.
+- [ ] **Reading:** Chapters 17 and 18.
 
 **Objectives**
 - Processes vs threads, `fork`/`exec`, daemons, IPC (pipes, message queues, shared memory, sockets), pthreads, mutexes/condvars, scheduling policies and CPU affinity.
 - Virtual memory, kernel vs user memory, `/proc/meminfo`, `/proc/<pid>/smaps`, `smem`, `mmap`, memory leaks (`mtrace`, Valgrind), the OOM killer.
 
 **Labs**
-1. Port a Zephyr producer/consumer (threads + `k_msgq`) to: (a) pthreads + condvar, (b) two processes + POSIX message queue. Compare.
-2. Pin threads with `pthread_setaffinity_np`; observe with `htop`/`ps -eLo pid,tid,psr,cls,rtprio,comm`.
-3. Use `SCHED_FIFO` for one thread; measure jitter (prepares M15).
-4. Memory: run the book's examples, measure PSS/USS with `smem`; find an injected leak with Valgrind on target (add `valgrind` to the image).
-5. Trigger the OOM killer with a cgroup memory limit (systemd `MemoryMax=`) and read the kernel log.
+- [ ] 1. Port a Zephyr producer/consumer (threads + `k_msgq`) to: (a) pthreads + condvar, (b) two processes + POSIX message queue. Compare.
+- [ ] 2. Pin threads with `pthread_setaffinity_np`; observe with `htop`/`ps -eLo pid,tid,psr,cls,rtprio,comm`.
+- [ ] 3. Use `SCHED_FIFO` for one thread; measure jitter (prepares M15).
+- [ ] 4. Memory: run the book's examples, measure PSS/USS with `smem`; find an injected leak with Valgrind on target (add `valgrind` to the image).
+- [ ] 5. Trigger the OOM killer with a cgroup memory limit (systemd `MemoryMax=`) and read the kernel log.
 
 **Exit checks**
-- Both IPC versions working; written comparison.
-- Valgrind report pinpointing the leak's file:line.
-- OOM kill message captured in `journalctl -k`.
+- [ ] Both IPC versions working; written comparison.
+- [ ] Valgrind report pinpointing the leak's file:line.
+- [ ] OOM kill message captured in `journalctl -k`.
 
 ---
 
 ### M14 — Debugging, profiling & tracing (Week 16) · Chapters 19 & 20
 
-**Reading:** Chapters 19 and 20.
+- [ ] **Reading:** Chapters 19 and 20.
 
 **Objectives**
 - GDB: remote debugging with `gdbserver`, debug symbols in Yocto (`dbg-pkgs`, `IMAGE_GEN_DEBUGFS`), core dumps, GDB in IDEs, kernel debugging (kgdb).
 - Profiling and tracing: `top`, `perf` (record, report, flame graphs), ftrace (`trace-cmd`, KernelShark), LTTng, eBPF (BCC, bpftrace, ply), Valgrind (Callgrind, Helgrind), `strace`.
 
 **Labs**
-1. Remote debug your sensor daemon from the Yocto SDK GDB through `gdbserver` on target; set breakpoints, inspect variables.
-2. Make the daemon crash; collect a core dump (`systemd-coredump`) and analyze it on the host with matching symbols.
-3. kgdb over the serial console: break into the kernel, inspect `dummy-char` state.
-4. `perf record -g` on a CPU-heavy workload; generate a flame graph on the host.
-5. ftrace: trace I2C transactions while reading the BME280 (`trace-cmd record -e i2c`); view in KernelShark.
-6. eBPF: enable BPF in the kernel config, add `bpftrace`/`bcc` to the image, count syscalls per process; trace `openat` of your daemon.
-7. LTTng: instrument the daemon with a tracepoint and correlate with kernel events.
+- [ ] 1. Remote debug your sensor daemon from the Yocto SDK GDB through `gdbserver` on target; set breakpoints, inspect variables.
+- [ ] 2. Make the daemon crash; collect a core dump (`systemd-coredump`) and analyze it on the host with matching symbols.
+- [ ] 3. kgdb over the serial console: break into the kernel, inspect `dummy-char` state.
+- [ ] 4. `perf record -g` on a CPU-heavy workload; generate a flame graph on the host.
+- [ ] 5. ftrace: trace I2C transactions while reading the BME280 (`trace-cmd record -e i2c`); view in KernelShark.
+- [ ] 6. eBPF: enable BPF in the kernel config, add `bpftrace`/`bcc` to the image, count syscalls per process; trace `openat` of your daemon.
+- [ ] 7. LTTng: instrument the daemon with a tracepoint and correlate with kernel events.
 
 **Exit checks**
-- GDB session transcript with breakpoint hit.
-- Flame graph SVG in evidence.
-- `bpftrace` one-liner output showing your daemon's syscalls.
+- [ ] GDB session transcript with breakpoint hit.
+- [ ] Flame graph SVG in evidence.
+- [ ] `bpftrace` one-liner output showing your daemon's syscalls.
 
 ---
 
 ### M15 — Real-time programming (Week 17) · Chapter 21
 
-**Reading:** Chapter 21.
+- [ ] **Reading:** Chapter 21.
 
 **Objectives**
 - What real-time means, sources of non-determinism, kernel preemption models, PREEMPT_RT, threaded interrupts, high-resolution timers, avoiding page faults (`mlockall`), measuring latency, interrupt shielding.
 
 **Labs**
-1. Build two images: `linux-yocto` 6.6 (standard) and `linux-yocto-rt` 6.6 (`PREFERRED_PROVIDER_virtual/kernel = "linux-yocto-rt"`) for `opiz3`.
-2. Run `cyclictest -m -S -p 90 -i 1000 -l 1000000` on both, idle and under `stress-ng` + network load; produce latency histograms.
-3. Isolate a CPU (`isolcpus=3`, IRQ affinity) and pin the RT task; repeat the measurement.
-4. Write an RT application toggling a GPIO at 1 kHz using `clock_nanosleep` with `SCHED_FIFO` and `mlockall`; measure jitter with the logic analyzer. Compare against the same task on a Zephyr board (the trainees know how to make this comparison meaningful — encourage it).
+- [ ] 1. Build two images: `linux-yocto` 6.6 (standard) and `linux-yocto-rt` 6.6 (`PREFERRED_PROVIDER_virtual/kernel = "linux-yocto-rt"`) for `opiz3`.
+- [ ] 2. Run `cyclictest -m -S -p 90 -i 1000 -l 1000000` on both, idle and under `stress-ng` + network load; produce latency histograms.
+- [ ] 3. Isolate a CPU (`isolcpus=3`, IRQ affinity) and pin the RT task; repeat the measurement.
+- [ ] 4. Write an RT application toggling a GPIO at 1 kHz using `clock_nanosleep` with `SCHED_FIFO` and `mlockall`; measure jitter with the logic analyzer. Compare against the same task on a Zephyr board (the trainees know how to make this comparison meaningful — encourage it).
 
 **Exit checks**
-- Latency table (max/avg) for: standard idle, standard load, RT idle, RT load, RT load + isolated CPU.
-- Logic analyzer capture of the 1 kHz GPIO with measured jitter.
+- [ ] Latency table (max/avg) for: standard idle, standard load, RT idle, RT load, RT load + isolated CPU.
+- [ ] Logic analyzer capture of the 1 kHz GPIO with measured jitter.
 
 **Review question**
-- For an IoT product needing <100 µs response, when do you use PREEMPT_RT and when do you put a Zephyr MCU next to the Linux SoC?
+- [ ] For an IoT product needing <100 µs response, when do you use PREEMPT_RT and when do you put a Zephyr MCU next to the Linux SoC?
 
 ---
 
@@ -769,20 +796,18 @@ $ mount | grep ubifs     # UBIFS mounted
 
 Build, from your own layers, a production-style IoT gateway image. Requirements:
 
-| Area | Requirement | Chapters |
-|---|---|---|
-| Build | Reproducible kas/manifest build, Scarthgap, `MACHINE = "opiz3"`, `DISTRO = "opiz3-iot"` | 6–8 |
-| Boot | Own TF-A + U-Boot + `linux-yocto` 6.6 + custom DTS/overlays | 3, 4 |
-| Storage | Read-only rootfs, A/B partitions, persistent data partition | 9 |
-| Updates | Mender OTA with automatic rollback, demonstrated live | 10 |
-| Hardware | BME280 via kernel IIO driver + one more peripheral (SPI or UART) | 11, 12 |
-| Application | Python or C daemon publishing MQTT; systemd unit with watchdog | 13, 15 |
-| Containers | Optional: broker or a second service as a container | 16 |
-| Robustness | Hardware watchdog, journald limits, no leaks under Valgrind | 13, 18 |
-| Observability | Debug image variant with gdbserver, perf, bpftrace | 19, 20 |
-| Security basics | No root password, SSH keys only, firewall rules, license manifest | 1, 7 |
+- [ ] **Build:** Reproducible kas/manifest build, Scarthgap, `MACHINE = "opiz3"`, `DISTRO = "opiz3-iot"` (Ch. 6–8)
+- [ ] **Boot:** Own TF-A + U-Boot + `linux-yocto` 6.6 + custom DTS/overlays (Ch. 3, 4)
+- [ ] **Storage:** Read-only rootfs, A/B partitions, persistent data partition (Ch. 9)
+- [ ] **Updates:** Mender OTA with automatic rollback, demonstrated live (Ch. 10)
+- [ ] **Hardware:** BME280 via kernel IIO driver + one more peripheral (SPI or UART) (Ch. 11, 12)
+- [ ] **Application:** Python or C daemon publishing MQTT; systemd unit with watchdog (Ch. 13, 15)
+- [ ] **Containers:** Optional: broker or a second service as a container (Ch. 16)
+- [ ] **Robustness:** Hardware watchdog, journald limits, no leaks under Valgrind (Ch. 13, 18)
+- [ ] **Observability:** Debug image variant with gdbserver, perf, bpftrace (Ch. 19, 20)
+- [ ] **Security basics:** No root password, SSH keys only, firewall rules, license manifest (Ch. 1, 7)
 
-**Demo (30 min):** flash from scratch → boot → data in MQTT → OTA update → induced failure → rollback → `bpftrace` live investigation of the daemon.
+- [ ] **Demo (30 min):** flash from scratch → boot → data in MQTT → OTA update → induced failure → rollback → `bpftrace` live investigation of the daemon.
 
 **Stretch goals:** SPI LoRa radio module driver/integration; secure boot discussion for sunxi; CI pipeline that builds the image and runs `oeqa` tests on a board in the lab.
 
